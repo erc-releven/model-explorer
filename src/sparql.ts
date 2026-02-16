@@ -703,11 +703,15 @@ function buildSelectAst({
     const nextTokenPrefix = [...tokenPrefix, rawPredicate];
     const depth = displayDepth;
 
+    const useOwnerScopedPrefixKeys =
+      includeFullPrefixConstraintsWhenCentralNotTopModel ||
+      boundaryContext.includes("|ref:");
+
     if (stepIndex + 1 < classes.length) {
       const nextClassRaw = classes[stepIndex + 1];
       const nextClass = nextClassRaw.replace(/^\^/, "");
       const nextPrefixTokens = [...nextTokenPrefix, nextClassRaw];
-      const nextPrefixKey = includeFullPrefixConstraintsWhenCentralNotTopModel
+      const nextPrefixKey = useOwnerScopedPrefixKeys
         ? `${boundaryContext}|classPrefix:${nextPrefixTokens.join("|")}|owner:${ownerDisplayId}`
         : `${boundaryContext}|classPrefix:${nextPrefixTokens.join("|")}`;
       const isTerminalSelectedNode = stepIndex + 1 === classes.length - 1;
@@ -749,7 +753,7 @@ function buildSelectAst({
       });
     }
 
-    const valuePrefixKey = includeFullPrefixConstraintsWhenCentralNotTopModel
+    const valuePrefixKey = useOwnerScopedPrefixKeys
       ? `${boundaryContext}|valuePrefix:${nextTokenPrefix.join("|")}|owner:${ownerDisplayId}`
       : `${boundaryContext}|valuePrefix:${nextTokenPrefix.join("|")}`;
     const valueVarName = getOrCreatePrefixVar(
@@ -790,16 +794,34 @@ function buildSelectAst({
     const sourceVarBase = toVarSafeFragment(node.sourcePathId);
     const displayDepth = depthByDisplayId.get(displayId) ?? 0;
     const boundaryContext = boundaryContextByDisplayId.get(displayId) ?? "root";
+    const useOwnerScopedPrefixKeys =
+      includeFullPrefixConstraintsWhenCentralNotTopModel ||
+      boundaryContext.includes("|ref:");
 
     const rootClass = classes[0].replace(/^\^/, "");
-    const rootPrefixKey = includeFullPrefixConstraintsWhenCentralNotTopModel
+    const rootPrefixKey = useOwnerScopedPrefixKeys
       ? `${boundaryContext}|class:${rootClass}|owner:${displayId}`
       : `${boundaryContext}|class:${rootClass}`;
-    const rootVarName = getOrCreatePrefixVar(
+    let rootVarName = getOrCreatePrefixVar(
       rootPrefixKey,
       `${sourceVarBase}_root`,
       "root",
     );
+    const parentDisplayId = parentByDisplayId.get(displayId);
+    if (parentDisplayId) {
+      const parentNode = selectedNodeByDisplayId.get(parentDisplayId);
+      const parentResolvedVar =
+        resolvedSelectVariableByDisplayId.get(parentDisplayId);
+      if (parentNode && isEntityReferenceNode(parentNode) && parentResolvedVar) {
+        const parentPathArray = readPathArray(parentNode.path);
+        const parentClasses = parentPathArray.filter((_, index) => index % 2 === 0);
+        const parentTerminalClass =
+          parentClasses[parentClasses.length - 1]?.replace(/^\^/, "") ?? "";
+        if (parentTerminalClass !== "" && parentTerminalClass === rootClass) {
+          rootVarName = parentResolvedVar;
+        }
+      }
+    }
     const rootTriple = addTriple(
       v(rootVarName),
       iri(RDF_TYPE_IRI),

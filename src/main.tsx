@@ -977,7 +977,6 @@ function buildFlowForGroup({
 		const isFieldNode = getComputedPathArrayLength(levelNode.fields) % 2 === 0;
 		const hasExpandableParents = !isFieldNode && expandableAboveCount > 0;
 		const parentsExpanded = expandedAboveNodeIds.has(displayId);
-		const showAboveToggle = !isFieldNode && (hasExpandableParents || parentsExpanded);
 		const position = positions.get(displayId)!;
 		const isSelected = selectedNodeIds.has(displayId);
 		const isCountNode = countNodeIds.has(displayId);
@@ -1039,7 +1038,7 @@ function buildFlowForGroup({
 				sourcePathId: displayNode.sourceId,
 				label: (
 					<div className="relative inline-flex flex-col items-center justify-center text-center text-neutral-900">
-						{showAboveToggle ? (
+						{hasExpandableParents ? (
 							<button
 								type="button"
 								className="nodrag nopan absolute -top-6 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border border-neutral-300 bg-white px-1.5 text-[9px] leading-4 text-neutral-700 shadow-sm"
