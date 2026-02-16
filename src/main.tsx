@@ -2,18 +2,22 @@ import "@xyflow/react/dist/style.css";
 import "./index.css";
 
 import {
-	Background,
-	Controls,
 	type Edge,
 	type Node,
-	ReactFlow,
 	type ReactFlowInstance,
 } from "@xyflow/react";
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Button, Checkbox, Tab, TabList, Tabs } from "react-aria-components";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import colors from "tailwindcss/colors";
 
+import { GraphDisplaySection } from "./components/GraphDisplaySection";
+import { ModelInspectionSection } from "./components/ModelInspectionSection";
+import {
+	type QueryResultSort,
+	type SparqlJsonResultTable,
+	SparqlQuerySection,
+} from "./components/SparqlQuerySection";
+import { XmlLoaderSection } from "./components/XmlLoaderSection";
 import {
 	collectNonGroupDescendants,
 	EMPTY_GRAPH,
@@ -76,18 +80,50 @@ const GROUP_COLOR_PALETTE: Array<string> = [
 	colors.blue[100],
 ];
 
-interface SparqlResultCell {
-	value: string;
-}
+function ModelNodeTooltipOverlay({
+	name,
+	typeLabel,
+	modelGroupFieldCount,
+	typeReferenceParentCount,
+}: {
+	name: string;
+	typeLabel: string;
+	modelGroupFieldCount: number;
+	typeReferenceParentCount: number;
+}) {
+	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
 
-interface SparqlJsonResultTable {
-	vars: Array<string>;
-	rows: Array<Record<string, SparqlResultCell>>;
-}
-
-interface QueryResultSort {
-	column: string;
-	direction: "asc" | "desc";
+	return (
+		<>
+			<button
+				type="button"
+				aria-label={`${name} (${typeLabel})`}
+				className="nodrag nopan absolute -inset-x-3 -inset-y-2 z-10 cursor-help rounded-[inherit] border-0 bg-transparent p-0 text-inherit outline-none hover:!border-transparent hover:!bg-transparent focus-visible:ring-2 focus-visible:ring-neutral-500/60"
+				onPointerEnter={() => {
+					setIsTooltipOpen(true);
+				}}
+				onPointerLeave={() => {
+					setIsTooltipOpen(false);
+				}}
+				onFocus={() => {
+					setIsTooltipOpen(true);
+				}}
+				onBlur={() => {
+					setIsTooltipOpen(false);
+				}}
+			/>
+			{isTooltipOpen ? (
+				<div
+					role="tooltip"
+					className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 z-[9999] w-max max-w-sm -translate-x-1/2 rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-[11px] leading-4 text-neutral-900 shadow-lg"
+				>
+					<div>{`${name} (${typeLabel})`}</div>
+					<div>{`top level model with ${String(modelGroupFieldCount)} fields`}</div>
+					<div>{`referenced from ${String(typeReferenceParentCount)} other models`}</div>
+				</div>
+			) : null}
+		</>
+	);
 }
 
 function readFieldString(value: unknown): string {
@@ -531,13 +567,13 @@ function buildFlowForGroup({
 			viaReferenceName: entry.viaReferenceName,
 			viaReferenceSourceId: entry.viaReferenceSourceId,
 		}));
-		const hierarchyParent = getHierarchyParent(node);
-		const hierarchyParents =
-			hierarchyParent && !availableSourceIds.has(hierarchyParent.id)
-				? [
-					{
-						path: hierarchyParent,
-						kind: "parent" as const,
+			const hierarchyParent = getHierarchyParent(node);
+			const hierarchyParents =
+				hierarchyParent && !availableSourceIds.has(hierarchyParent.id)
+					? [
+						{
+							path: hierarchyParent,
+							kind: "parent" as const,
 						viaReferenceName: undefined,
 					},
 				]
@@ -930,28 +966,51 @@ function buildFlowForGroup({
 		const totalChildCount = getSourceChildren(displayNode).length;
 		const typeReferenceParentCount =
 			getTypeReferenceParents(displayNode).length;
-		const hierarchyParent = getHierarchyParent(displayNode);
-		const expandableAboveIds = new Set<string>(
-			getTypeReferenceParents(displayNode).map((entry) => entry.parent.id),
-		);
-		if (hierarchyParent && !displayedSourceIds.has(hierarchyParent.id)) {
-			expandableAboveIds.add(hierarchyParent.id);
-		}
+			const hierarchyParent = getHierarchyParent(displayNode);
+			const expandableAboveIds = new Set<string>(
+				getTypeReferenceParents(displayNode).map((entry) => entry.parent.id),
+			);
+			if (hierarchyParent && !displayedSourceIds.has(hierarchyParent.id)) {
+				expandableAboveIds.add(hierarchyParent.id);
+			}
 		const expandableAboveCount = expandableAboveIds.size;
 		const isFieldNode = getComputedPathArrayLength(levelNode.fields) % 2 === 0;
 		const hasExpandableParents = !isFieldNode && expandableAboveCount > 0;
 		const parentsExpanded = expandedAboveNodeIds.has(displayId);
+		const showAboveToggle = !isFieldNode && (hasExpandableParents || parentsExpanded);
 		const position = positions.get(displayId)!;
 		const isSelected = selectedNodeIds.has(displayId);
 		const isCountNode = countNodeIds.has(displayId);
 		const isFirstSelected = firstSelectedNodeId === displayId;
-		const isGroupLike =
-			levelNode.classification === "model" ||
-			levelNode.classification === "group" ||
-			levelNode.classification === "reference";
-		const nodeBorderClass =
-			levelNode.classification === "reference"
-				? "border-2 border-dashed border-neutral-400"
+			const isGroupLike =
+				levelNode.classification === "model" ||
+				levelNode.classification === "group" ||
+				levelNode.classification === "reference";
+			const isModelNode = levelNode.classification === "model";
+			const isEntityReferenceModelNode = levelNode.classification === "reference";
+			const tooltipModelId =
+				isModelNode
+					? levelNode.id
+					: isEntityReferenceModelNode && referencedGroupId !== ""
+						? referencedGroupId
+						: "";
+			const tooltipModelPath = tooltipModelId ? byId[tooltipModelId] : undefined;
+			const hasModelTooltip = Boolean(
+				tooltipModelPath && tooltipModelPath.classification === "model",
+			);
+			const tooltipName = hasModelTooltip
+				? (tooltipModelPath?.name ?? levelNode.name)
+				: levelNode.name;
+			const tooltipType = hasModelTooltip
+				? (tooltipModelPath?.type ?? levelNode.type)
+				: levelNode.type;
+			const modelGroupFieldCount =
+				hasModelTooltip && tooltipModelId
+					? collectNonGroupDescendants(tooltipModelId, childrenByParentId).length
+					: 0;
+			const nodeBorderClass =
+				levelNode.classification === "reference"
+					? "border-2 border-dashed border-neutral-400"
 				: levelNode.classification === "model"
 					? "border-2 border-neutral-400"
 					: "border border-neutral-300";
@@ -980,7 +1039,7 @@ function buildFlowForGroup({
 				sourcePathId: displayNode.sourceId,
 				label: (
 					<div className="relative inline-flex flex-col items-center justify-center text-center text-neutral-900">
-						{hasExpandableParents ? (
+						{showAboveToggle ? (
 							<button
 								type="button"
 								className="nodrag nopan absolute -top-6 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border border-neutral-300 bg-white px-1.5 text-[9px] leading-4 text-neutral-700 shadow-sm"
@@ -998,23 +1057,31 @@ function buildFlowForGroup({
 							</button>
 						) : null}
 
-						<div
-							className={
-								isCollapsed
-									? "inline-flex min-w-0 flex-col items-center justify-center gap-1 rounded-full px-3 py-2"
-									: "flex flex-col items-center justify-center gap-1"
-							}
-							style={
-								isCollapsed ? { backgroundColor: "transparent" } : undefined
-							}
-						>
-							<span className="whitespace-normal break-words text-xs font-semibold leading-tight">
-								{levelNode.name}
-							</span>
-							<code className="whitespace-normal break-all rounded bg-neutral-100 px-1 py-0.5 text-[9px] text-neutral-700">
-								{abbreviateType(levelNode.type)}
-							</code>
-						</div>
+							<div
+								className={
+									isCollapsed
+										? "relative inline-flex w-full min-w-0 flex-col items-center justify-center gap-1 rounded-full px-3 py-2"
+										: "relative flex w-full flex-col items-center justify-center gap-1"
+								}
+								style={
+									isCollapsed ? { backgroundColor: "transparent" } : undefined
+								}
+							>
+								{hasModelTooltip ? (
+									<ModelNodeTooltipOverlay
+										name={tooltipName}
+										typeLabel={abbreviateType(tooltipType)}
+										modelGroupFieldCount={modelGroupFieldCount}
+										typeReferenceParentCount={typeReferenceParentCount}
+									/>
+								) : null}
+								<span className="pointer-events-none whitespace-normal break-words text-xs font-semibold leading-tight">
+									{levelNode.name}
+								</span>
+								<code className="pointer-events-none whitespace-normal break-all rounded bg-neutral-100 px-1 py-0.5 text-[9px] text-neutral-700">
+									{abbreviateType(levelNode.type)}
+								</code>
+							</div>
 
 						{hasChildren ? (
 							!isFieldNode ? (
@@ -1790,10 +1857,6 @@ function App() {
 
 	const activeGroup = graph.groups.find((entry) => entry.id === activeGroupId);
 
-	const nonGroupDescendants = collectNonGroupDescendants(
-		activeGroupId,
-		graph.childrenByParentId,
-	);
 	const flow = useMemo(
 		() =>
 			activeGroup
@@ -2386,821 +2449,427 @@ function App() {
 		selection.selected,
 	]);
 
+	const visibleSavedTabViews = visibleSavedTabs.map((tab) => ({
+		id: tab.id,
+		label: tab.label,
+		groupName: graph.byId[tab.groupId]?.name ?? tab.groupId,
+		selectedNodeCount: tab.selectedNodeIds.length,
+	}));
+
+	const handleUploadXmlFile = async (file: File): Promise<void> => {
+		try {
+			const text = await readGraphXmlFile(file);
+			applyLoadedGraph(text, file.name);
+		} catch (error) {
+			setXmlLoadError(
+				error instanceof Error
+					? error.message
+					: "Failed to read uploaded XML file.",
+			);
+		}
+	};
+
+	const handleLoadXmlUrl = async (url: string): Promise<void> => {
+		if (url.length === 0) {
+			return;
+		}
+
+		setIsLoadingFromUrl(true);
+		try {
+			const response = await fetch(url, { cache: "no-store" });
+			if (!response.ok) {
+				throw new Error(`Failed to load URL (${String(response.status)}).`);
+			}
+			const text = await response.text();
+			applyLoadedGraph(text, url);
+		} catch (error) {
+			setXmlLoadError(
+				error instanceof Error ? error.message : "Failed to load XML from URL.",
+			);
+		} finally {
+			setIsLoadingFromUrl(false);
+		}
+	};
+
+	const handleSelectGroup = (groupId: string): void => {
+		shouldFitAfterQueryTabRestoreRef.current = true;
+		fitTargetNodeIdsRef.current = null;
+		setActiveGroupId(groupId);
+		setExpandedChildNodeIds(new Set());
+		setExpandedAboveNodeIds(new Set());
+		setSelection({ first: null, selected: new Set() });
+		setCountSelectedNodeIds(new Set());
+		setGeneratedSparql("");
+		setActiveQueryTabId(CURRENT_QUERY_TAB_ID);
+	};
+
+	const handleFlowNodeClick = (event: React.MouseEvent, node: Node): void => {
+		if (!flow) {
+			return;
+		}
+		if (event.shiftKey) {
+			const nodeId = node.id;
+			if (countBlockedNodeIds.has(node.id)) {
+				setSelection((prev) => toggleNodeSelection(prev, node.id, flow.edges));
+				return;
+			}
+			const nodeAlreadySelected = selection.selected.has(nodeId);
+			const nodeAlreadyCount = countSelectedNodeIds.has(nodeId);
+			const bridgePath = findShortestPathToSelected(
+				nodeId,
+				selection.selected,
+				flow.edges,
+			);
+			const canToggleCount =
+				nodeAlreadyCount || nodeAlreadySelected || bridgePath !== null;
+			if (!canToggleCount) {
+				return;
+			}
+			setSelection((prev) => {
+				if (prev.selected.has(nodeId)) {
+					return prev;
+				}
+				return toggleNodeSelection(prev, nodeId, flow.edges);
+			});
+			setCountSelectedNodeIds((prev) => {
+				const next = new Set(prev);
+				if (next.has(nodeId)) {
+					next.delete(nodeId);
+				} else {
+					next.add(nodeId);
+				}
+				return next;
+			});
+			return;
+		}
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			return;
+		}
+		const nodeId = node.id;
+		setSelection((prev) => toggleNodeSelection(prev, nodeId, flow.edges));
+	};
+
+	const handleQueryTabSelection = (nextTabId: string): void => {
+		if (
+			activeQueryTabId === CURRENT_QUERY_TAB_ID &&
+			nextTabId !== CURRENT_QUERY_TAB_ID
+		) {
+			setCurrentSelectionDraft({
+				sourceLabel: xmlSourceLabel,
+				groupId: activeGroupId,
+				selectedNodeIds: Array.from(selection.selected),
+				countNodeIds: Array.from(countSelectedNodeIds),
+				firstSelectedNodeId: selection.first,
+				expandedChildNodeIds: Array.from(expandedChildNodeIds),
+				expandedAboveNodeIds: Array.from(expandedAboveNodeIds),
+				includeZeroCountResults,
+				includeFullPrefixConstraints,
+				namedGraphInput,
+				orderByDirection: selectedOrderByDirection,
+				queryLimit,
+				query: generatedSparql,
+			});
+		}
+		setActiveQueryTabId(nextTabId);
+		setCountSelectedNodeIds(new Set());
+		if (nextTabId === CURRENT_QUERY_TAB_ID) {
+			if (currentSelectionDraft.sourceLabel !== xmlSourceLabel) {
+				fitTargetNodeIdsRef.current = null;
+				setSelection({ first: null, selected: new Set() });
+				setExpandedChildNodeIds(new Set());
+				setExpandedAboveNodeIds(new Set());
+				setIncludeZeroCountResults(true);
+				setIncludeFullPrefixConstraints(true);
+				setNamedGraphInput("");
+				setSelectedOrderByDirection("DESC");
+				setQueryLimit(100);
+				setGeneratedSparql("");
+				return;
+			}
+
+			shouldFitAfterQueryTabRestoreRef.current = true;
+			fitTargetNodeIdsRef.current = [...currentSelectionDraft.selectedNodeIds];
+			if (currentSelectionDraft.groupId) {
+				setActiveGroupId(currentSelectionDraft.groupId);
+			}
+			setExpandedChildNodeIds(new Set(currentSelectionDraft.expandedChildNodeIds));
+			setExpandedAboveNodeIds(new Set(currentSelectionDraft.expandedAboveNodeIds));
+			setSelection({
+				first: currentSelectionDraft.firstSelectedNodeId,
+				selected: new Set(currentSelectionDraft.selectedNodeIds),
+			});
+			setCountSelectedNodeIds(new Set(currentSelectionDraft.countNodeIds));
+			setIncludeZeroCountResults(currentSelectionDraft.includeZeroCountResults);
+			setIncludeFullPrefixConstraints(
+				currentSelectionDraft.includeFullPrefixConstraints,
+			);
+			setNamedGraphInput(currentSelectionDraft.namedGraphInput);
+			setSelectedOrderByDirection(currentSelectionDraft.orderByDirection);
+			setQueryLimit(currentSelectionDraft.queryLimit);
+			setGeneratedSparql(currentSelectionDraft.query);
+			return;
+		}
+		const tab = visibleSavedTabs.find((entry) => entry.id === nextTabId);
+		if (tab) {
+			shouldFitAfterQueryTabRestoreRef.current = true;
+			fitTargetNodeIdsRef.current = [...tab.selectedNodeIds];
+			setActiveGroupId(tab.groupId);
+			setExpandedChildNodeIds(new Set(tab.expandedChildNodeIds));
+			setExpandedAboveNodeIds(new Set(tab.expandedAboveNodeIds));
+			setSelection({
+				first: tab.firstSelectedNodeId,
+				selected: new Set(tab.selectedNodeIds),
+			});
+			setCountSelectedNodeIds(new Set(tab.countNodeIds));
+			setIncludeZeroCountResults(tab.includeZeroCountResults);
+			setIncludeFullPrefixConstraints(tab.includeFullPrefixConstraints);
+			setNamedGraphInput(tab.namedGraphInput);
+			setSelectedOrderByDirection(tab.orderByDirection);
+			setQueryLimit(tab.queryLimit);
+		}
+	};
+
+	const handleExecuteQuery = (): void => {
+		void (async () => {
+			const query = generatedSparql.trim();
+			if (query.length === 0) {
+				setQueryExecutionError("No query is currently generated.");
+				setQueryExecutionResult("");
+				return;
+			}
+			const normalizedLimit =
+				Number.isFinite(queryLimit) && queryLimit > 0 ? Math.trunc(queryLimit) : 100;
+			const hasLimit = /\bLIMIT\s+\d+\b/i.test(query);
+			const executableQuery = hasLimit
+				? query
+				: `${query}\nLIMIT ${String(normalizedLimit)}`;
+
+			setIsExecutingQuery(true);
+			setQueryExecutionError(null);
+			setQueryExecutionResult("");
+			setQueryExecutionTable(null);
+			setQueryResultSort(null);
+
+			try {
+				const params = new URLSearchParams({
+					query: executableQuery,
+				});
+				const namedGraph = namedGraphInput.trim();
+				if (namedGraph.length > 0) {
+					params.set("named-graph-uri", namedGraph);
+				}
+				const response = await fetch(GRAPHDB_ENDPOINT, {
+					method: "POST",
+					headers: {
+						"Content-Type":
+							"application/x-www-form-urlencoded; charset=UTF-8",
+						Accept:
+							"application/sparql-results+json, application/json;q=0.9, text/plain;q=0.8",
+					},
+					body: params.toString(),
+				});
+
+				const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+				if (!response.ok) {
+					const errorText = await response.text();
+					throw new Error(
+						`Query failed (${String(response.status)}): ${errorText}`,
+					);
+				}
+
+				if (contentType.includes("json")) {
+					const payload = (await response.json()) as unknown;
+					const maybeTable = (() => {
+						if (typeof payload !== "object" || payload === null) {
+							return null;
+						}
+						const data = payload as {
+							head?: { vars?: unknown };
+							results?: { bindings?: unknown };
+						};
+						if (
+							!data.head ||
+							!Array.isArray(data.head.vars) ||
+							!data.results ||
+							!Array.isArray(data.results.bindings)
+						) {
+							return null;
+						}
+						const vars = data.head.vars.filter(
+							(entry): entry is string =>
+								typeof entry === "string" && entry.trim().length > 0,
+						);
+						if (vars.length === 0) {
+							return null;
+						}
+						const rows = data.results.bindings
+							.filter(
+								(
+									entry,
+								): entry is Partial<Record<string, { value?: unknown }>> =>
+									typeof entry === "object" && entry !== null,
+							)
+							.map((entry) => {
+								const row: Record<string, { value: string }> = {};
+								for (const variable of vars) {
+									const cell = entry[variable];
+									row[variable] = {
+										value: typeof cell?.value === "string" ? cell.value : "",
+									};
+								}
+								return row;
+							});
+						return { vars, rows };
+					})();
+					if (maybeTable) {
+						setQueryExecutionTable(maybeTable);
+					} else {
+						setQueryExecutionResult(JSON.stringify(payload, null, 2));
+					}
+				} else {
+					const text = await response.text();
+					setQueryExecutionResult(text);
+				}
+			} catch (error) {
+				setQueryExecutionError(
+					error instanceof Error ? error.message : "Failed to execute query.",
+				);
+			} finally {
+				setIsExecutingQuery(false);
+			}
+		})();
+	};
+
+	const handleCopyQuery = (): void => {
+		void (async () => {
+			const textToCopy =
+				displayedQuery ||
+				"# Query updates automatically when graph selection changes.";
+			try {
+				await navigator.clipboard.writeText(textToCopy);
+				setCopiedQuery(true);
+				window.setTimeout(() => {
+					setCopiedQuery(false);
+				}, 1200);
+			} catch {
+				setCopiedQuery(false);
+			}
+		})();
+	};
+
+	const handleToggleQuerySort = (variable: string): void => {
+		setQueryResultSort((prev) => {
+			if (prev?.column !== variable) {
+				return {
+					column: variable,
+					direction: "asc",
+				};
+			}
+			return {
+				column: variable,
+				direction: prev.direction === "asc" ? "desc" : "asc",
+			};
+		});
+	};
+
 	return (
 		<main className="mx-auto max-w-7xl p-4 text-neutral-900">
 			<h1 className="mb-1 text-3xl font-bold">Releven model explorer</h1>
-			<section className="mt-3 w-full max-w-3xl rounded-xl border border-neutral-300 bg-white p-4 shadow-sm">
-				<div className="flex flex-col gap-3">
-					<label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm text-neutral-800 hover:bg-neutral-50">
-						<span>Upload XML</span>
-						<input
-							type="file"
-							accept=".xml,text/xml,application/xml"
-							className="w-[13rem] text-xs text-neutral-700 file:mr-2 file:cursor-pointer file:rounded file:border-0 file:bg-neutral-200 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-neutral-700 hover:file:bg-neutral-300"
-							onChange={(event: ChangeEvent<HTMLInputElement>) => {
-								const input = event.currentTarget;
-								const file = input.files?.[0];
-								if (!file) {
-									return;
-								}
-								void (async () => {
-									try {
-										const text = await readGraphXmlFile(file);
-										applyLoadedGraph(text, file.name);
-									} catch (error) {
-										setXmlLoadError(
-											error instanceof Error
-												? error.message
-												: "Failed to read uploaded XML file.",
-										);
-									} finally {
-										input.value = "";
-									}
-								})();
-							}}
-						/>
-					</label>
-
-					<div className="flex min-w-[20rem] items-center gap-2">
-						<input
-							type="url"
-							placeholder="https://example.org/graph.xml"
-							value={xmlUrlInput}
-							onChange={(event) => {
-								setXmlUrlInput(event.target.value);
-							}}
-							className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-800"
-						/>
-						<button
-							type="button"
-							disabled={isLoadingFromUrl || xmlUrlInput.trim().length === 0}
-							className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
-							onClick={() => {
-								void (async () => {
-									const url = xmlUrlInput.trim();
-									if (url.length === 0) {
-										return;
-									}
-
-									setIsLoadingFromUrl(true);
-									try {
-										const response = await fetch(url, { cache: "no-store" });
-										if (!response.ok) {
-											throw new Error(
-												`Failed to load URL (${String(response.status)}).`,
-											);
-										}
-										const text = await response.text();
-										applyLoadedGraph(text, url);
-									} catch (error) {
-										setXmlLoadError(
-											error instanceof Error
-												? error.message
-												: "Failed to load XML from URL.",
-										);
-									} finally {
-										setIsLoadingFromUrl(false);
-									}
-								})();
-							}}
-						>
-							{isLoadingFromUrl ? "Loading..." : "Load URL"}
-						</button>
-					</div>
-				</div>
-			</section>
+			<XmlLoaderSection
+				xmlUrlInput={xmlUrlInput}
+				isLoadingFromUrl={isLoadingFromUrl}
+				onXmlUrlInputChange={setXmlUrlInput}
+				onUploadFile={handleUploadXmlFile}
+				onLoadUrl={handleLoadXmlUrl}
+			/>
 			{xmlLoadError || graphParseError ? (
 				<p className="mt-2 text-sm font-medium text-red-700">
 					{xmlLoadError ?? graphParseError}
 				</p>
 			) : null}
 
-			<section className="mt-4 rounded-t-xl border border-b-0 border-neutral-300 bg-neutral-50 px-3 py-2">
-				<div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 pb-2 text-sm text-neutral-600">
-					<span>
-						Parsed <strong>{Object.keys(graph.byId).length}</strong> paths from{" "}
-						<code className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs">
-							{xmlSourceLabel}
-						</code>
-					</span>
-				</div>
-				<p className="mt-2 text-sm font-medium text-neutral-700">
-					{`Choose one of ${String(sortedGroups.length)} root type(s) to begin exploring the model:`}
-				</p>
-				<div className="mt-2 flex flex-wrap gap-2">
-					{sortedGroups.map((group) => (
-						<Button
-							key={group.id}
-							className="rounded-full border border-neutral-400 bg-white px-2.5 py-1 text-xs font-medium text-neutral-900 shadow-sm hover:bg-neutral-100"
-							onPress={() => {
-								if (group.id === activeGroupId) {
-									return;
-								}
-								shouldFitAfterQueryTabRestoreRef.current = true;
-								fitTargetNodeIdsRef.current = null;
-								setActiveGroupId(group.id);
-								setExpandedChildNodeIds(new Set());
-								setExpandedAboveNodeIds(new Set());
-								setSelection({ first: null, selected: new Set() });
-								setCountSelectedNodeIds(new Set());
-								setGeneratedSparql("");
-								setActiveQueryTabId(CURRENT_QUERY_TAB_ID);
-							}}
-						>
-							{group.name} [{groupReferenceCounts[group.id] ?? 0}]
-						</Button>
-					))}
-				</div>
-			</section>
-
-			{graph.groups.length === 0 && !xmlLoadError && !graphParseError ? (
-				<p className="rounded-md border border-neutral-300 bg-white p-3 text-neutral-700">
-					No model elements found in the loaded XML file.
-				</p>
-			) : null}
-
-			{activeGroup ? (
-				<section className="-mt-px rounded-b-xl border border-neutral-300 bg-white p-4 shadow-sm">
-					<h2 className="text-xl font-semibold">
-						Model centered on type {activeGroup.name} (
-						{abbreviateType(activeGroup.type)}), a top model consisting of{" "}
-						{nonGroupDescendants.length} fields
-					</h2>
-					<p className="mt-1 text-sm text-neutral-600">
-						Click on nodes to add them to a model sub-selection, shift click to
-						add them as count nodes.
-					</p>
-
-					<div className="mt-4">
-						<div
-							ref={flowViewportRef}
-							className="h-[42rem] w-full overflow-hidden rounded-xl border border-neutral-200"
-						>
-							{flow ? (
-								<ReactFlow
-									onInit={(instance) => {
-										reactFlowInstanceRef.current = instance;
-									}}
-									fitView
-									fitViewOptions={{ padding: 0.15 }}
-									minZoom={0.02}
-									nodes={flow.nodes}
-									edges={flow.edges}
-									nodesDraggable={false}
-									nodesConnectable={false}
-									onNodeClick={(event, node) => {
-										if (event.shiftKey) {
-											const nodeId = node.id;
-											if (countBlockedNodeIds.has(node.id)) {
-												setSelection((prev) =>
-													toggleNodeSelection(prev, node.id, flow.edges),
-												);
-												return;
-											}
-											const nodeAlreadySelected =
-												selection.selected.has(nodeId);
-											const nodeAlreadyCount = countSelectedNodeIds.has(nodeId);
-											const bridgePath = findShortestPathToSelected(
-												nodeId,
-												selection.selected,
-												flow.edges,
-											);
-											const canToggleCount =
-												nodeAlreadyCount ||
-												nodeAlreadySelected ||
-												bridgePath !== null;
-											if (!canToggleCount) {
-												return;
-											}
-											setSelection((prev) => {
-												if (prev.selected.has(nodeId)) {
-													return prev;
-												}
-												return toggleNodeSelection(prev, nodeId, flow.edges);
-											});
-											setCountSelectedNodeIds((prev) => {
-												const next = new Set(prev);
-												if (next.has(nodeId)) {
-													next.delete(nodeId);
-												} else {
-													next.add(nodeId);
-												}
-												return next;
-											});
-											return;
-										}
-										if (event.ctrlKey || event.metaKey || event.altKey) {
-											return;
-										}
-										const nodeId = node.id;
-										setSelection((prev) =>
-											toggleNodeSelection(prev, nodeId, flow.edges),
-										);
-									}}
-								>
-									<Controls />
-									<Background gap={16} />
-								</ReactFlow>
-							) : null}
-						</div>
-					</div>
-
-					<section className="mt-5 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
-						<h3 className="text-lg font-semibold">Complex model inspection</h3>
-						<section className="mt-3 rounded-t-md border border-b-0 border-neutral-300 bg-neutral-100 px-2 pt-2">
-							<Tabs
-								selectedKey={activeQueryTabId}
-								onSelectionChange={(key) => {
-									const nextTabId = String(key);
-									if (
-										activeQueryTabId === CURRENT_QUERY_TAB_ID &&
-										nextTabId !== CURRENT_QUERY_TAB_ID
-									) {
-										setCurrentSelectionDraft({
-											sourceLabel: xmlSourceLabel,
-											groupId: activeGroupId,
-											selectedNodeIds: Array.from(selection.selected),
-											countNodeIds: Array.from(countSelectedNodeIds),
-											firstSelectedNodeId: selection.first,
-											expandedChildNodeIds: Array.from(expandedChildNodeIds),
-											expandedAboveNodeIds: Array.from(expandedAboveNodeIds),
-											includeZeroCountResults,
-											includeFullPrefixConstraints,
-											namedGraphInput,
-											orderByDirection: selectedOrderByDirection,
-											queryLimit,
-											query: generatedSparql,
-										});
-									}
-									setActiveQueryTabId(nextTabId);
-									setCountSelectedNodeIds(new Set());
-									if (nextTabId === CURRENT_QUERY_TAB_ID) {
-										if (currentSelectionDraft.sourceLabel !== xmlSourceLabel) {
-											fitTargetNodeIdsRef.current = null;
-											setSelection({ first: null, selected: new Set() });
-											setExpandedChildNodeIds(new Set());
-											setExpandedAboveNodeIds(new Set());
-											setIncludeZeroCountResults(true);
-											setIncludeFullPrefixConstraints(true);
-											setNamedGraphInput("");
-											setSelectedOrderByDirection("DESC");
-											setQueryLimit(100);
-											setGeneratedSparql("");
-											return;
-										}
-
-										shouldFitAfterQueryTabRestoreRef.current = true;
-										fitTargetNodeIdsRef.current = [
-											...currentSelectionDraft.selectedNodeIds,
-										];
-										if (currentSelectionDraft.groupId) {
-											setActiveGroupId(currentSelectionDraft.groupId);
-										}
-										setExpandedChildNodeIds(
-											new Set(currentSelectionDraft.expandedChildNodeIds),
-										);
-										setExpandedAboveNodeIds(
-											new Set(currentSelectionDraft.expandedAboveNodeIds),
-										);
-										setSelection({
-											first: currentSelectionDraft.firstSelectedNodeId,
-											selected: new Set(currentSelectionDraft.selectedNodeIds),
-										});
-										setCountSelectedNodeIds(
-											new Set(currentSelectionDraft.countNodeIds),
-										);
-										setIncludeZeroCountResults(
-											currentSelectionDraft.includeZeroCountResults,
-										);
-										setIncludeFullPrefixConstraints(
-											currentSelectionDraft.includeFullPrefixConstraints,
-										);
-										setNamedGraphInput(currentSelectionDraft.namedGraphInput);
-										setSelectedOrderByDirection(
-											currentSelectionDraft.orderByDirection,
-										);
-										setQueryLimit(currentSelectionDraft.queryLimit);
-										setGeneratedSparql(currentSelectionDraft.query);
-										return;
-									}
-									const tab = visibleSavedTabs.find(
-										(entry) => entry.id === nextTabId,
-									);
-									if (tab) {
-										shouldFitAfterQueryTabRestoreRef.current = true;
-										fitTargetNodeIdsRef.current = [...tab.selectedNodeIds];
-										setActiveGroupId(tab.groupId);
-										setExpandedChildNodeIds(new Set(tab.expandedChildNodeIds));
-										setExpandedAboveNodeIds(new Set(tab.expandedAboveNodeIds));
-										setSelection({
-											first: tab.firstSelectedNodeId,
-											selected: new Set(tab.selectedNodeIds),
-										});
-										setCountSelectedNodeIds(new Set(tab.countNodeIds));
-										setIncludeZeroCountResults(tab.includeZeroCountResults);
-										setIncludeFullPrefixConstraints(
-											tab.includeFullPrefixConstraints,
-										);
-										setNamedGraphInput(tab.namedGraphInput);
-										setSelectedOrderByDirection(tab.orderByDirection);
-										setQueryLimit(tab.queryLimit);
-									}
-								}}
-							>
-								<TabList
-									aria-label="Query selection tabs"
-									className="flex flex-nowrap gap-2 overflow-x-auto outline-none"
-								>
-									<Tab
-										id={CURRENT_QUERY_TAB_ID}
-										className={({ isSelected }) =>
-											[
-												"relative -mb-px cursor-pointer rounded-t-md rounded-b-none border border-b-0 px-3 py-1.5 text-sm outline-none",
-												isSelected
-													? "z-10 border-neutral-700 bg-white font-semibold ring-2 ring-neutral-800/20"
-													: "border-neutral-300 bg-neutral-100 hover:bg-white",
-											].join(" ")
-										}
-									>
-										{`current selection (${String(currentSelectionDraft.selectedNodeIds.length)})`}
-									</Tab>
-									{visibleSavedTabs.map((tab) => (
-										<Tab
-											key={tab.id}
-											id={tab.id}
-											className={({ isSelected }) =>
-												[
-													"relative -mb-px cursor-pointer rounded-t-md rounded-b-none border border-b-0 px-3 py-1.5 text-sm outline-none",
-													isSelected
-														? "z-10 border-neutral-700 bg-white font-semibold ring-2 ring-neutral-800/20"
-														: "border-neutral-300 bg-neutral-100 hover:bg-white",
-												].join(" ")
-											}
-										>
-											<span className="inline-flex items-center gap-2">
-												<span>{`${graph.byId[tab.groupId].name}: ${tab.label} (${String(tab.selectedNodeIds.length)})${tab.id === activeQueryTabId && hasUnsavedChangesForActiveSavedTab ? " *" : ""}`}</span>
-												<Button
-													aria-label={`Delete selection ${tab.label}`}
-													className="rounded-sm border border-neutral-400 bg-white/80 px-1 text-[10px] leading-4 text-neutral-700 hover:bg-red-100 hover:text-red-700"
-													onPress={() => {
-														setSavedSelectionTabs((prev) =>
-															prev.filter((entry) => entry.id !== tab.id),
-														);
-														if (activeQueryTabId === tab.id) {
-															setActiveQueryTabId(CURRENT_QUERY_TAB_ID);
-														}
-													}}
-												>
-													x
-												</Button>
-											</span>
-										</Tab>
-									))}
-								</TabList>
-							</Tabs>
-						</section>
-
-						<section className="-mt-px rounded-b-md border border-neutral-300 bg-white p-3">
-							<p className="text-sm text-neutral-700">
-								Selected nodes: <strong>{displayedSelectedCount}</strong>
-							</p>
-							<div className="mt-2 flex flex-wrap items-center gap-2">
-								{isCurrentQueryTab ? (
-									<>
-										<button
-											type="button"
-											className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
-											disabled={selection.selected.size === 0}
-											onClick={saveSelectionAsNewTab}
-										>
-											Save selection
-										</button>
-										<button
-											type="button"
-											className="rounded-md border border-neutral-500 bg-neutral-100 px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-60"
-											disabled={selection.selected.size === 0}
-											onClick={() => {
-												setSelection({ first: null, selected: new Set() });
-											}}
-										>
-											Clear selection
-										</button>
-									</>
-								) : (
-									<>
-										<button
-											type="button"
-											className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
-											disabled={!hasUnsavedChangesForActiveSavedTab}
-											onClick={updateActiveSavedSelection}
-										>
-											Update selection
-										</button>
-										{hasUnsavedChangesForActiveSavedTab ? (
-											<>
-												<button
-													type="button"
-													className="rounded-md border border-neutral-600 bg-white px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-100"
-													onClick={saveSelectionAsNewTab}
-												>
-													Save new selection
-												</button>
-												<button
-													type="button"
-													className="rounded-md border border-neutral-500 bg-neutral-100 px-3 py-1.5 text-sm font-semibold text-neutral-900 hover:bg-neutral-200"
-													onClick={discardActiveSavedSelectionChanges}
-												>
-													Discard changes
-												</button>
-											</>
-										) : null}
-									</>
-								)}
-							</div>
-							<div className="mt-3 flex flex-col gap-2">
-								<Checkbox
-									isSelected={includeZeroCountResults}
-									isDisabled={disableIncludeZeroCountResults}
-									onChange={(selected) => {
-										setIncludeZeroCountResults(selected);
-									}}
-									className="inline-flex items-center gap-2 text-sm text-neutral-700"
-								>
-									{({ isDisabled, isSelected }) => (
-										<>
-											<span
-												aria-hidden="true"
-												className={[
-													"inline-flex h-4 w-4 items-center justify-center rounded border text-[11px] leading-none",
-													isDisabled
-														? "border-neutral-300 bg-neutral-100 text-neutral-400"
-														: "border-neutral-500 bg-white text-neutral-900",
-												].join(" ")}
-											>
-												{isSelected ? "✓" : ""}
-											</span>
-											<span>include zero count results</span>
-										</>
-									)}
-								</Checkbox>
-								<Checkbox
-									isSelected={includeFullPrefixConstraints}
-									isDisabled={disableIncludeFullPrefixConstraints}
-									onChange={(selected) => {
-										setIncludeFullPrefixConstraints(selected);
-									}}
-									className="inline-flex items-center gap-2 text-sm text-neutral-700"
-								>
-									{({ isDisabled, isSelected }) => (
-										<>
-											<span
-												aria-hidden="true"
-												className={[
-													"inline-flex h-4 w-4 items-center justify-center rounded border text-[11px] leading-none",
-													isDisabled
-														? "border-neutral-300 bg-neutral-100 text-neutral-400"
-														: "border-neutral-500 bg-white text-neutral-900",
-												].join(" ")}
-											>
-												{isSelected ? "✓" : ""}
-											</span>
-											<span>
-												include full prefix constraints when central node is not
-												a top model
-											</span>
-										</>
-									)}
-								</Checkbox>
-							</div>
-							<pre className="mt-3 min-h-[12rem] overflow-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100">
-								<button
-									type="button"
-									className="sticky right-2 top-2 float-right mb-2 ml-2 inline-flex items-center gap-1 rounded-md border border-neutral-500 bg-neutral-800/85 px-2 py-1 text-[11px] font-semibold text-neutral-100 hover:bg-neutral-700"
-									onClick={() => {
-										void (async () => {
-											const textToCopy =
-												displayedQuery ||
-												"# Query updates automatically when graph selection changes.";
-											try {
-												await navigator.clipboard.writeText(textToCopy);
-												setCopiedQuery(true);
-												window.setTimeout(() => {
-													setCopiedQuery(false);
-												}, 1200);
-											} catch {
-												setCopiedQuery(false);
-											}
-										})();
-									}}
-									title="Copy query to clipboard"
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										viewBox="0 0 24 24"
-										fill="currentColor"
-										className="h-3.5 w-3.5"
-										aria-hidden="true"
-									>
-										<path d="M9 2.25A2.25 2.25 0 0 0 6.75 4.5v1.5H6A2.25 2.25 0 0 0 3.75 8.25v10.5A2.25 2.25 0 0 0 6 21h8.25a2.25 2.25 0 0 0 2.25-2.25V17.5H18A2.25 2.25 0 0 0 20.25 15V4.5A2.25 2.25 0 0 0 18 2.25H9Zm-.75 3.75V4.5a.75.75 0 0 1 .75-.75H18a.75.75 0 0 1 .75.75V15a.75.75 0 0 1-.75.75h-1.5v-7.5A2.25 2.25 0 0 0 14.25 6H8.25Z" />
-									</svg>
-									{copiedQuery ? "Copied" : "Copy to clipboard"}
-								</button>
-								{displayedQuery}
-							</pre>
-							<div className="mt-3">
-								<div className="mb-3 flex flex-wrap items-end gap-2">
-									<label className="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm text-neutral-700">
-										<span>named graph</span>
-										<input
-											type="text"
-											value={namedGraphInput}
-											onChange={(event) => {
-												setNamedGraphInput(event.target.value);
-											}}
-											placeholder="https://example.org/graph"
-											className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
-										/>
-									</label>
-									<label className="flex min-w-[11rem] flex-col gap-1 text-sm text-neutral-700">
-										<span>order by variable</span>
-										<select
-											value={selectedOrderByVariable}
-											onChange={(event) => {
-												setSelectedOrderByVariable(event.target.value);
-											}}
-											disabled={orderByVariableOptions.length === 0}
-											className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900 disabled:bg-neutral-100 disabled:text-neutral-500"
-										>
-											{orderByVariableOptions.length === 0 ? (
-												<option value="">No projected variables</option>
-											) : (
-												orderByVariableOptions.map((option) => (
-													<option key={option.value} value={option.value}>
-														{option.label}
-													</option>
-												))
-											)}
-										</select>
-									</label>
-									<label className="flex w-[6.5rem] flex-col gap-1 text-sm text-neutral-700">
-										<span>direction</span>
-										<select
-											value={selectedOrderByDirection}
-											onChange={(event) => {
-												const next = event.target.value;
-												if (next === "ASC" || next === "DESC") {
-													setSelectedOrderByDirection(next);
-												}
-											}}
-											className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
-										>
-											<option value="ASC">ASC</option>
-											<option value="DESC">DESC</option>
-										</select>
-									</label>
-									<label className="flex w-[6.5rem] flex-col gap-1 text-sm text-neutral-700">
-										<span>limit</span>
-										<input
-											type="number"
-											min={1}
-											step={1}
-											value={Number.isNaN(queryLimit) ? "" : queryLimit}
-											onChange={(event) => {
-												const parsed = Number.parseInt(event.target.value, 10);
-												if (Number.isNaN(parsed)) {
-													setQueryLimit(Number.NaN);
-													return;
-												}
-												setQueryLimit(parsed);
-											}}
-											className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900"
-										/>
-									</label>
-									<button
-										type="button"
-										className="rounded-md border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm font-semibold text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
-										disabled={
-											isExecutingQuery || generatedSparql.trim().length === 0
-										}
-										onClick={() => {
-											void (async () => {
-												const query = generatedSparql.trim();
-												if (query.length === 0) {
-													setQueryExecutionError(
-														"No query is currently generated.",
-													);
-													setQueryExecutionResult("");
-													return;
-												}
-												const normalizedLimit =
-													Number.isFinite(queryLimit) && queryLimit > 0
-														? Math.trunc(queryLimit)
-														: 100;
-												const hasLimit = /\bLIMIT\s+\d+\b/i.test(query);
-												const executableQuery = hasLimit
-													? query
-													: `${query}\nLIMIT ${String(normalizedLimit)}`;
-
-												setIsExecutingQuery(true);
-												setQueryExecutionError(null);
-												setQueryExecutionResult("");
-												setQueryExecutionTable(null);
-												setQueryResultSort(null);
-
-												try {
-													const params = new URLSearchParams({
-														query: executableQuery,
-													});
-													const namedGraph = namedGraphInput.trim();
-													if (namedGraph.length > 0) {
-														params.set("named-graph-uri", namedGraph);
-													}
-													const response = await fetch(GRAPHDB_ENDPOINT, {
-														method: "POST",
-														headers: {
-															"Content-Type":
-																"application/x-www-form-urlencoded; charset=UTF-8",
-															Accept:
-																"application/sparql-results+json, application/json;q=0.9, text/plain;q=0.8",
-														},
-														body: params.toString(),
-													});
-
-													const contentType =
-														response.headers
-															.get("content-type")
-															?.toLowerCase() ?? "";
-													if (!response.ok) {
-														const errorText = await response.text();
-														throw new Error(
-															`Query failed (${String(response.status)}): ${errorText}`,
-														);
-													}
-
-													if (contentType.includes("json")) {
-														const payload = (await response.json()) as unknown;
-														const maybeTable = (() => {
-															if (
-																typeof payload !== "object" ||
-																payload === null
-															) {
-																return null;
-															}
-															const data = payload as {
-																head?: { vars?: unknown };
-																results?: { bindings?: unknown };
-															};
-															if (
-																!data.head ||
-																!Array.isArray(data.head.vars) ||
-																!data.results ||
-																!Array.isArray(data.results.bindings)
-															) {
-																return null;
-															}
-															const vars = data.head.vars.filter(
-																(entry): entry is string =>
-																	typeof entry === "string" &&
-																	entry.trim().length > 0,
-															);
-															if (vars.length === 0) {
-																return null;
-															}
-															const rows = data.results.bindings
-																.filter(
-																	(
-																		entry,
-																	): entry is Partial<
-																		Record<string, { value?: unknown }>
-																	> =>
-																		typeof entry === "object" && entry !== null,
-																)
-																.map((entry) => {
-																	const row: Record<string, SparqlResultCell> =
-																		{};
-																	for (const variable of vars) {
-																		const cell = entry[variable];
-																		row[variable] = {
-																			value:
-																				typeof cell?.value === "string"
-																					? cell.value
-																					: "",
-																		};
-																	}
-																	return row;
-																});
-															return { vars, rows };
-														})();
-														if (maybeTable) {
-															setQueryExecutionTable(maybeTable);
-														} else {
-															setQueryExecutionResult(
-																JSON.stringify(payload, null, 2),
-															);
-														}
-													} else {
-														const text = await response.text();
-														setQueryExecutionResult(text);
-													}
-												} catch (error) {
-													setQueryExecutionError(
-														error instanceof Error
-															? error.message
-															: "Failed to execute query.",
-													);
-												} finally {
-													setIsExecutingQuery(false);
-												}
-											})();
-										}}
-									>
-										{isExecutingQuery ? "Executing..." : "Execute query"}
-									</button>
-								</div>
-								{queryExecutionError ? (
-									<p className="mt-2 text-sm font-medium text-red-700">
-										{queryExecutionError}
-									</p>
-								) : null}
-								{queryExecutionTable ? (
-									<div className="mt-2">
-										<p className="mb-1 text-sm text-neutral-700">
-											Results: {String(sortedQueryExecutionRows.length)}
-										</p>
-										<div className="max-h-72 overflow-auto rounded-lg border border-neutral-300 bg-white">
-											<table className="w-max table-auto border-collapse text-xs text-neutral-900">
-												<thead className="sticky top-0 bg-neutral-100">
-													<tr>
-														{queryExecutionTable.vars.map((variable) => (
-															<th
-																key={variable}
-																className="border-b border-neutral-300 px-2 py-1 text-left font-semibold whitespace-nowrap"
-															>
-																<button
-																	type="button"
-																	className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-neutral-200"
-																	onClick={() => {
-																		setQueryResultSort((prev) => {
-																			if (prev?.column !== variable) {
-																				return {
-																					column: variable,
-																					direction: "asc",
-																				};
-																			}
-																			return {
-																				column: variable,
-																				direction:
-																					prev.direction === "asc"
-																						? "desc"
-																						: "asc",
-																			};
-																		});
-																	}}
-																>
-																	<span>{variable}</span>
-																	{queryResultSort?.column === variable ? (
-																		<span>
-																			{queryResultSort.direction === "asc"
-																				? "▲"
-																				: "▼"}
-																		</span>
-																	) : null}
-																</button>
-															</th>
-														))}
-													</tr>
-												</thead>
-												<tbody>
-													{sortedQueryExecutionRows.map((row, rowIndex) => (
-														<tr
-															key={String(rowIndex)}
-															className="odd:bg-white even:bg-neutral-50"
-														>
-															{queryExecutionTable.vars.map((variable) => (
-																<td
-																	key={`${variable}_${String(rowIndex)}`}
-																	className="border-b border-neutral-200 px-2 py-1 align-top whitespace-nowrap"
-																>
-																	{row[variable].value}
-																</td>
-															))}
-														</tr>
-													))}
-												</tbody>
-											</table>
-										</div>
-									</div>
-								) : null}
-								{queryExecutionResult ? (
-									<pre className="mt-2 max-h-72 overflow-auto rounded-lg border border-neutral-300 bg-white p-3 text-xs text-neutral-900">
-										{queryExecutionResult}
-									</pre>
-								) : null}
-							</div>
-						</section>
-					</section>
-				</section>
-			) : null}
+			<GraphDisplaySection
+				graphPathCount={Object.keys(graph.byId).length}
+				xmlSourceLabel={xmlSourceLabel}
+				sortedGroups={sortedGroups}
+				groupReferenceCounts={groupReferenceCounts}
+				activeGroupId={activeGroupId}
+				onSelectGroup={handleSelectGroup}
+				showNoModelMessage={
+					graph.groups.length === 0 && !xmlLoadError && !graphParseError
+				}
+				activeGroup={
+					activeGroup
+						? {
+							name: activeGroup.name,
+							typeLabel: abbreviateType(activeGroup.type),
+						}
+						: null
+				}
+				flowViewportRef={flowViewportRef}
+				flow={flow}
+				onFlowInit={(instance) => {
+					reactFlowInstanceRef.current = instance;
+				}}
+				onFlowNodeClick={handleFlowNodeClick}
+			>
+				<ModelInspectionSection
+					activeQueryTabId={activeQueryTabId}
+					currentSelectionCount={currentSelectionDraft.selectedNodeIds.length}
+					visibleSavedTabs={visibleSavedTabViews}
+					hasUnsavedChangesForActiveSavedTab={hasUnsavedChangesForActiveSavedTab}
+					displayedSelectedCount={displayedSelectedCount}
+					isCurrentQueryTab={isCurrentQueryTab}
+					canSaveOrClearSelection={selection.selected.size > 0}
+					canUpdateSelection={hasUnsavedChangesForActiveSavedTab}
+					includeZeroCountResults={includeZeroCountResults}
+					disableIncludeZeroCountResults={disableIncludeZeroCountResults}
+					includeFullPrefixConstraints={includeFullPrefixConstraints}
+					disableIncludeFullPrefixConstraints={disableIncludeFullPrefixConstraints}
+					onSelectTab={handleQueryTabSelection}
+					onDeleteSavedTab={(tabId) => {
+						setSavedSelectionTabs((prev) =>
+							prev.filter((entry) => entry.id !== tabId),
+						);
+						if (activeQueryTabId === tabId) {
+							setActiveQueryTabId(CURRENT_QUERY_TAB_ID);
+						}
+					}}
+					onSaveSelection={saveSelectionAsNewTab}
+					onClearSelection={() => {
+						setSelection({ first: null, selected: new Set() });
+					}}
+					onUpdateSelection={updateActiveSavedSelection}
+					onSaveNewSelection={saveSelectionAsNewTab}
+					onDiscardChanges={discardActiveSavedSelectionChanges}
+					onIncludeZeroCountResultsChange={setIncludeZeroCountResults}
+					onIncludeFullPrefixConstraintsChange={setIncludeFullPrefixConstraints}
+				>
+					<SparqlQuerySection
+						displayedQuery={displayedQuery}
+						copiedQuery={copiedQuery}
+						namedGraphInput={namedGraphInput}
+						selectedOrderByVariable={selectedOrderByVariable}
+						selectedOrderByDirection={selectedOrderByDirection}
+						queryLimit={queryLimit}
+						isExecutingQuery={isExecutingQuery}
+						generatedSparql={generatedSparql}
+						orderByVariableOptions={orderByVariableOptions}
+						queryExecutionError={queryExecutionError}
+						queryExecutionTable={queryExecutionTable}
+						sortedQueryExecutionRows={sortedQueryExecutionRows}
+						queryResultSort={queryResultSort}
+						queryExecutionResult={queryExecutionResult}
+						onCopyQuery={handleCopyQuery}
+						onNamedGraphInputChange={setNamedGraphInput}
+						onSelectedOrderByVariableChange={setSelectedOrderByVariable}
+						onSelectedOrderByDirectionChange={setSelectedOrderByDirection}
+						onQueryLimitChange={setQueryLimit}
+						onExecuteQuery={handleExecuteQuery}
+						onToggleQuerySort={handleToggleQuerySort}
+					/>
+				</ModelInspectionSection>
+			</GraphDisplaySection>
 		</main>
 	);
 }

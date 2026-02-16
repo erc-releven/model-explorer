@@ -1043,6 +1043,10 @@ function renderTerm(term: Term, prefixes: Record<string, string>): string {
   return toCompactIri(term.value, prefixes);
 }
 
+function isCentralNodeComment(comment: string): boolean {
+  return /^#\s*>+\s*Central node:/i.test(comment.trim());
+}
+
 function renderWhereSection(
   ast: SelectQueryAst,
   triplesWithDepth: Array<TripleWithDepth>,
@@ -1105,10 +1109,10 @@ function renderWhereSection(
     const indent = "  ".repeat(emission.depth + 1);
     const comments = transitionCommentsByEmissionId.get(emission.id) ?? [];
     const centralComments = includeCentralNodeComment
-      ? comments.filter((comment) => comment.startsWith("# Central node >>>>"))
+      ? comments.filter(isCentralNodeComment)
       : [];
     const regularComments = comments.filter(
-      (comment) => !comment.startsWith("# Central node >>>>"),
+      (comment) => !isCentralNodeComment(comment),
     );
 
     for (const comment of regularComments) {
