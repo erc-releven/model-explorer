@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply m-0 bg-slate-100 text-slate-800;
+    background:
+      radial-gradient(
+        1100px 500px at 100% -10%,
+        theme(colors.sky.100) 0%,
+        transparent 72%
+      ),
+      radial-gradient(
+        900px 420px at -15% 0%,
+        theme(colors.cyan.50) 0%,
+        transparent 66%
+      ),
+      theme(colors.slate.100);
+  }
+
+  * {
+    @apply box-border;
+  }
+}
+
+main h1,
+main h2,
+main h3 {
+  @apply text-blue-900;
+}
+
+main p {
+  @apply text-slate-600;
+}
+
+main section {
+  border-color: theme(colors.slate.300) !important;
+}
+
+main button {
+  @apply border-slate-300 bg-white text-slate-800;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+main button:hover {
+  @apply border-sky-700 bg-sky-50;
+}
+
+main button[class*="bg-neutral-800"] {
+  background-color: theme(colors.sky.700) !important;
+  border-color: theme(colors.sky.900) !important;
+  color: theme(colors.white) !important;
+}
+
+main button[class*="bg-neutral-800"]:hover {
+  background-color: theme(colors.sky.900) !important;
+}
+
+main code {
+  background: theme(colors.sky.50) !important;
+  color: theme(colors.blue.900);
+}
+
+main pre {
+  background: theme(colors.slate.900) !important;
+  color: theme(colors.sky.50) !important;
+}
+
+.react-flow__edge-path {
+  stroke: theme(colors.slate.500);
+}
+
+.react-flow__edge-textbg {
+  fill: theme(colors.white);
+  stroke: theme(colors.slate.300);
+}
+
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}
