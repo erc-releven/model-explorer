@@ -16,6 +16,10 @@ export interface SavedSelectionTab {
 	expandedAboveNodeIds: Array<string>;
 	includeZeroCountResults: boolean;
 	includeFullPrefixConstraints: boolean;
+	makeAllFieldsOptional: boolean;
+	makeAllEntityReferencesOptional: boolean;
+	disregardTypesOfNonRootNodes: boolean;
+	omitClassConstraints: boolean;
 	namedGraphInput: string;
 	orderByDirection: "ASC" | "DESC";
 	queryLimit: number;
@@ -32,6 +36,10 @@ export interface CurrentSelectionDraft {
 	expandedAboveNodeIds: Array<string>;
 	includeZeroCountResults: boolean;
 	includeFullPrefixConstraints: boolean;
+	makeAllFieldsOptional: boolean;
+	makeAllEntityReferencesOptional: boolean;
+	disregardTypesOfNonRootNodes: boolean;
+	omitClassConstraints: boolean;
 	namedGraphInput: string;
 	orderByDirection: "ASC" | "DESC";
 	queryLimit: number;
@@ -161,6 +169,22 @@ export function sanitizeSavedSelectionTab(
 			typeof entry.includeFullPrefixConstraints === "boolean"
 				? entry.includeFullPrefixConstraints
 				: true,
+		makeAllFieldsOptional:
+			typeof entry.makeAllFieldsOptional === "boolean"
+				? entry.makeAllFieldsOptional
+				: false,
+		makeAllEntityReferencesOptional:
+			typeof entry.makeAllEntityReferencesOptional === "boolean"
+				? entry.makeAllEntityReferencesOptional
+				: false,
+		disregardTypesOfNonRootNodes:
+			typeof entry.disregardTypesOfNonRootNodes === "boolean"
+				? entry.disregardTypesOfNonRootNodes
+				: false,
+		omitClassConstraints:
+			typeof entry.omitClassConstraints === "boolean"
+				? entry.omitClassConstraints
+				: false,
 		namedGraphInput:
 			typeof entry.namedGraphInput === "string" ? entry.namedGraphInput : "",
 		orderByDirection: entry.orderByDirection === "ASC" ? "ASC" : "DESC",
@@ -212,6 +236,22 @@ export function sanitizeCurrentSelectionDraft(
 			typeof entry.includeFullPrefixConstraints === "boolean"
 				? entry.includeFullPrefixConstraints
 				: true,
+		makeAllFieldsOptional:
+			typeof entry.makeAllFieldsOptional === "boolean"
+				? entry.makeAllFieldsOptional
+				: false,
+		makeAllEntityReferencesOptional:
+			typeof entry.makeAllEntityReferencesOptional === "boolean"
+				? entry.makeAllEntityReferencesOptional
+				: false,
+		disregardTypesOfNonRootNodes:
+			typeof entry.disregardTypesOfNonRootNodes === "boolean"
+				? entry.disregardTypesOfNonRootNodes
+				: false,
+		omitClassConstraints:
+			typeof entry.omitClassConstraints === "boolean"
+				? entry.omitClassConstraints
+				: false,
 		namedGraphInput:
 			typeof entry.namedGraphInput === "string" ? entry.namedGraphInput : "",
 		orderByDirection: entry.orderByDirection === "ASC" ? "ASC" : "DESC",

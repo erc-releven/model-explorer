@@ -84,3 +84,35 @@ main pre {
   opacity: 0;
   pointer-events: none;
 }
+
+.root-group-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: theme(colors.slate.400) theme(colors.slate.200);
+}
+
+.root-group-scroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+.root-group-scroll::-webkit-scrollbar-track {
+  background: theme(colors.slate.200);
+  border-radius: 9999px;
+}
+
+.root-group-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    90deg,
+    theme(colors.sky.500),
+    theme(colors.blue.600)
+  );
+  border: 2px solid theme(colors.slate.200);
+  border-radius: 9999px;
+}
+
+.root-group-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(
+    90deg,
+    theme(colors.sky.600),
+    theme(colors.blue.700)
+  );
+}

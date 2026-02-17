@@ -1,6 +1,19 @@
 import { Parser } from "sparqljs";
 
 import { TYPE_PREFIXES } from "./prefixes";
+import {
+  buildBehindCountSubgraphs,
+  buildPathTokenPrefixFromSegments,
+  buildPrefixVarLookupKey,
+  computeDisplayDepths,
+  computeReferenceBoundaryContext,
+  getSharedTokenPrefixLength,
+  isEntityReferenceNode,
+  readFieldString,
+  readPathArray,
+  readPathSegments,
+  toVarSafeFragment,
+} from "./sparql-helpers";
 
 type PathFieldValue =
   | string
@@ -80,10 +93,6 @@ interface RenderWhereSectionResult {
   usedPrefixes: Set<string>;
 }
 
-function readFieldString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
-
 function v(name: string): VariableTerm {
   return { termType: "Variable", value: name };
 }
@@ -118,227 +127,21 @@ function remapVariableInTermMap(
   return v(replacement);
 }
 
-function readPathArray(path: SparqlPathNode | undefined): Array<string> {
-  const raw = path?.fields.path_array;
-  if (!Array.isArray(raw)) {
-    return [];
-  }
-
-  return raw.filter(
-    (value): value is string =>
-      typeof value === "string" && value.trim().length > 0,
-  );
-}
-
-function toVarSafeFragment(value: string | null | undefined): string {
-  const safe = (value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-  if (safe.length === 0) {
-    return "path";
-  }
-  if (/^\d/.test(safe)) {
-    return `p_${safe}`;
-  }
-  return safe;
-}
-
-function computeDisplayDepths({
-  selectedNodes,
-  selectedEdges,
-  firstSelectedDisplayNodeId,
-}: {
-  selectedNodes: Array<SparqlSelectedNode>;
-  selectedEdges: Array<SparqlSelectedEdge>;
-  firstSelectedDisplayNodeId: string | null;
-}): Map<string, number> {
-  const nodeIds = new Set(selectedNodes.map((node) => node.displayId));
-  const outgoing = new Map<string, Set<string>>();
-  const incoming = new Map<string, Set<string>>();
-
-  for (const nodeId of nodeIds) {
-    outgoing.set(nodeId, new Set());
-    incoming.set(nodeId, new Set());
-  }
-
-  for (const edge of selectedEdges) {
-    if (
-      !nodeIds.has(edge.sourceDisplayId) ||
-      !nodeIds.has(edge.targetDisplayId)
-    ) {
-      continue;
-    }
-    outgoing.get(edge.sourceDisplayId)!.add(edge.targetDisplayId);
-    incoming.get(edge.targetDisplayId)!.add(edge.sourceDisplayId);
-  }
-
-  const depthByDisplayId = new Map<string, number>();
-  const startId =
-    firstSelectedDisplayNodeId && nodeIds.has(firstSelectedDisplayNodeId)
-      ? firstSelectedDisplayNodeId
-      : selectedNodes[0]?.displayId;
-
-  if (startId) {
-    const queue: Array<string> = [startId];
-    depthByDisplayId.set(startId, 0);
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      const currentDepth = depthByDisplayId.get(current) ?? 0;
-
-      const parents = Array.from(incoming.get(current) ?? []).sort();
-      for (const parent of parents) {
-        if (depthByDisplayId.has(parent)) {
-          continue;
-        }
-        depthByDisplayId.set(parent, currentDepth - 1);
-        queue.push(parent);
-      }
-
-      const children = Array.from(outgoing.get(current) ?? []).sort();
-      for (const child of children) {
-        if (depthByDisplayId.has(child)) {
-          continue;
-        }
-        depthByDisplayId.set(child, currentDepth + 1);
-        queue.push(child);
-      }
-    }
-  }
-
-  for (const nodeId of Array.from(nodeIds).sort()) {
-    if (!depthByDisplayId.has(nodeId)) {
-      depthByDisplayId.set(nodeId, 0);
-    }
-  }
-
-  let minDepth = 0;
-  for (const depth of depthByDisplayId.values()) {
-    if (depth < minDepth) {
-      minDepth = depth;
-    }
-  }
-  if (minDepth < 0) {
-    const shift = -minDepth;
-    for (const nodeId of depthByDisplayId.keys()) {
-      depthByDisplayId.set(nodeId, (depthByDisplayId.get(nodeId) ?? 0) + shift);
-    }
-  }
-
-  return depthByDisplayId;
-}
-
-function isEntityReferenceNode(node: SparqlSelectedNode | undefined): boolean {
-  if (!node?.path) {
-    return false;
-  }
-  return readFieldString(node.path.fields.fieldtype) === "entity_reference";
-}
-
-function computeReferenceBoundaryContext({
-  selectedNodes,
-  selectedEdges,
-  firstSelectedDisplayNodeId,
-}: {
-  selectedNodes: Array<SparqlSelectedNode>;
-  selectedEdges: Array<SparqlSelectedEdge>;
-  firstSelectedDisplayNodeId: string | null;
-}): Map<string, string> {
-  const nodeIds = new Set(selectedNodes.map((node) => node.displayId));
-  const nodeByDisplayId = new Map(
-    selectedNodes.map((node) => [node.displayId, node]),
-  );
-  const outgoing = new Map<string, Array<string>>();
-  const incomingCount = new Map<string, number>();
-
-  for (const nodeId of nodeIds) {
-    outgoing.set(nodeId, []);
-    incomingCount.set(nodeId, 0);
-  }
-
-  for (const edge of selectedEdges) {
-    if (
-      !nodeIds.has(edge.sourceDisplayId) ||
-      !nodeIds.has(edge.targetDisplayId)
-    ) {
-      continue;
-    }
-    outgoing.get(edge.sourceDisplayId)!.push(edge.targetDisplayId);
-    incomingCount.set(
-      edge.targetDisplayId,
-      (incomingCount.get(edge.targetDisplayId) ?? 0) + 1,
-    );
-  }
-
-  for (const [nodeId, children] of outgoing.entries()) {
-    children.sort();
-    outgoing.set(nodeId, children);
-  }
-
-  const roots = Array.from(nodeIds)
-    .filter((nodeId) => (incomingCount.get(nodeId) ?? 0) === 0)
-    .sort();
-  const preferredRoot =
-    firstSelectedDisplayNodeId && nodeIds.has(firstSelectedDisplayNodeId)
-      ? firstSelectedDisplayNodeId
-      : null;
-  if (preferredRoot) {
-    const index = roots.indexOf(preferredRoot);
-    if (index > 0) {
-      roots.splice(index, 1);
-      roots.unshift(preferredRoot);
-    } else if (index === -1) {
-      roots.unshift(preferredRoot);
-    }
-  }
-
-  const contextByNodeId = new Map<string, string>();
-  const queue: Array<string> = [];
-
-  for (const rootId of roots) {
-    if (!contextByNodeId.has(rootId)) {
-      contextByNodeId.set(rootId, "root");
-      queue.push(rootId);
-    }
-  }
-
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const parentContext = contextByNodeId.get(current) ?? "root";
-    const currentNode = nodeByDisplayId.get(current);
-    const crossesReferenceBoundary = isEntityReferenceNode(currentNode);
-    const nextBaseContext = crossesReferenceBoundary
-      ? `${parentContext}|ref:${toVarSafeFragment(current)}`
-      : parentContext;
-
-    for (const child of outgoing.get(current) ?? []) {
-      if (!contextByNodeId.has(child)) {
-        contextByNodeId.set(child, nextBaseContext);
-        queue.push(child);
-      }
-    }
-  }
-
-  for (const nodeId of Array.from(nodeIds).sort()) {
-    if (!contextByNodeId.has(nodeId)) {
-      contextByNodeId.set(nodeId, `root|orphan:${toVarSafeFragment(nodeId)}`);
-    }
-  }
-
-  return contextByNodeId;
-}
-
 function buildSelectAst({
   selectedNodes,
   selectedEdges,
   firstSelectedDisplayNodeId,
+  projectedDisplayNodeIds,
+  makeAllFieldsOptional = false,
+  makeAllEntityReferencesOptional = false,
   includeFullPrefixConstraintsWhenCentralNotTopModel = false,
 }: {
   selectedNodes: Array<SparqlSelectedNode>;
   selectedEdges: Array<SparqlSelectedEdge>;
   firstSelectedDisplayNodeId: string | null;
+  projectedDisplayNodeIds?: Set<string>;
+  makeAllFieldsOptional?: boolean;
+  makeAllEntityReferencesOptional?: boolean;
   includeFullPrefixConstraintsWhenCentralNotTopModel?: boolean;
 }): {
   ast: SelectQueryAst;
@@ -348,6 +151,7 @@ function buildSelectAst({
   selectProjections: Array<SelectProjection>;
   optionalChainByDisplayId: Map<string, Array<string>>;
   resolvedSelectVariableByDisplayId: Map<string, string>;
+  centralDisplayId: string | null;
 } {
   const selectedNodeByDisplayId = new Map(
     selectedNodes.map((node) => [node.displayId, node]),
@@ -393,6 +197,7 @@ function buildSelectAst({
     selectedNodeByDisplayId.has(firstSelectedDisplayNodeId)
       ? firstSelectedDisplayNodeId
       : (selectedNodes[0]?.displayId ?? null);
+  const centralDisplayId = preferredStartId;
   const roots = allDisplayIds
     .filter((displayId) => (incomingCount.get(displayId) ?? 0) === 0)
     .sort();
@@ -409,7 +214,6 @@ function buildSelectAst({
   const orderedDisplayIds: Array<string> = [];
   const orderedSet = new Set<string>();
   const parentByDisplayId = new Map<string, string>();
-  const upstreamTransitionKeys = new Set<string>();
 
   function appendDisplayId(displayId: string): void {
     if (orderedSet.has(displayId)) {
@@ -419,72 +223,145 @@ function buildSelectAst({
     orderedDisplayIds.push(displayId);
   }
 
-  function visitDownstreamDfs(currentId: string): void {
-    appendDisplayId(currentId);
-    const children = Array.from(outgoing.get(currentId) ?? []).sort();
+  const downstreamBranchDepthMemo = new Map<string, number>();
+  function getDownstreamBranchDepth(
+    nodeId: string,
+    inProgress: Set<string> = new Set<string>(),
+  ): number {
+    const memoized = downstreamBranchDepthMemo.get(nodeId);
+    if (memoized !== undefined) {
+      return memoized;
+    }
+    if (inProgress.has(nodeId)) {
+      // Defensive cycle break; treat cyclical paths as very deep.
+      return Number.POSITIVE_INFINITY;
+    }
+    inProgress.add(nodeId);
+    const children = Array.from(outgoing.get(nodeId) ?? []);
+    if (children.length === 0) {
+      inProgress.delete(nodeId);
+      downstreamBranchDepthMemo.set(nodeId, 0);
+      return 0;
+    }
+    let maxDepth = 0;
     for (const childId of children) {
+      const childDepth = getDownstreamBranchDepth(childId, inProgress);
+      if (childDepth > maxDepth) {
+        maxDepth = childDepth;
+      }
+    }
+    inProgress.delete(nodeId);
+    const depth = maxDepth + 1;
+    downstreamBranchDepthMemo.set(nodeId, depth);
+    return depth;
+  }
+
+  const getSortedChildren = (currentId: string): Array<string> =>
+    Array.from(outgoing.get(currentId) ?? []).sort((a, b) => {
+      const depthA = getDownstreamBranchDepth(a);
+      const depthB = getDownstreamBranchDepth(b);
+      if (depthA !== depthB) {
+        return depthA - depthB;
+      }
+      return a.localeCompare(b);
+    });
+  const getSortedParents = (currentId: string): Array<string> =>
+    Array.from(incoming.get(currentId) ?? []).sort();
+
+  function visitFullGraphDfs(
+    currentId: string,
+    priority: "upstream" | "downstream",
+    blockedNodeIds: Set<string> | null = null,
+  ): void {
+    if (blockedNodeIds?.has(currentId)) {
+      return;
+    }
+    appendDisplayId(currentId);
+    const parents = getSortedParents(currentId);
+    const children = getSortedChildren(currentId);
+    const primary = priority === "upstream" ? parents : children;
+    const secondary = priority === "upstream" ? children : parents;
+
+    for (const parentId of priority === "upstream" ? primary : secondary) {
+      if (blockedNodeIds?.has(parentId)) {
+        continue;
+      }
+      if (currentId !== preferredStartId && !parentByDisplayId.has(currentId)) {
+        parentByDisplayId.set(currentId, parentId);
+      }
+      if (!orderedSet.has(parentId)) {
+        visitFullGraphDfs(parentId, priority, blockedNodeIds);
+      }
+    }
+    for (const childId of priority === "upstream" ? secondary : primary) {
+      if (blockedNodeIds?.has(childId)) {
+        continue;
+      }
       if (!parentByDisplayId.has(childId)) {
         parentByDisplayId.set(childId, currentId);
       }
       if (!orderedSet.has(childId)) {
-        visitDownstreamDfs(childId);
+        visitFullGraphDfs(childId, priority, blockedNodeIds);
       }
     }
   }
 
   if (preferredStartId) {
-    // Upstream traversal in postorder => ancestors first, selected node last.
-    const upstreamVisited = new Set<string>();
-    const upstreamPostOrder: Array<string> = [];
-
-    function visitUpstreamPostOrder(currentId: string): void {
-      if (upstreamVisited.has(currentId)) {
-        return;
-      }
-      upstreamVisited.add(currentId);
-
-      const parents = Array.from(incoming.get(currentId) ?? []).sort();
-      for (const parentId of parents) {
-        if (!parentByDisplayId.has(currentId)) {
-          parentByDisplayId.set(currentId, parentId);
-        }
-        upstreamTransitionKeys.add(`${parentId}=>${currentId}`);
-        visitUpstreamPostOrder(parentId);
-      }
-
-      upstreamPostOrder.push(currentId);
+    const centralParents = getSortedParents(preferredStartId);
+    const upstreamStartParentId = centralParents[0] ?? null;
+    if (upstreamStartParentId) {
+      visitFullGraphDfs(
+        upstreamStartParentId,
+        "upstream",
+        new Set<string>([preferredStartId]),
+      );
     }
-
-    visitUpstreamPostOrder(preferredStartId);
-    for (const upstreamId of upstreamPostOrder) {
-      if (upstreamId === preferredStartId) {
-        continue;
-      }
-      appendDisplayId(upstreamId);
-    }
-
     appendDisplayId(preferredStartId);
-    visitDownstreamDfs(preferredStartId);
+    visitFullGraphDfs(preferredStartId, "downstream");
   }
 
   // Fallback for disconnected/remaining selected nodes.
   for (const rootId of roots) {
     if (!orderedSet.has(rootId)) {
-      visitDownstreamDfs(rootId);
+      visitFullGraphDfs(rootId, "downstream");
     }
   }
   for (const displayId of [...allDisplayIds].sort()) {
     if (!orderedSet.has(displayId)) {
-      visitDownstreamDfs(displayId);
+      visitFullGraphDfs(displayId, "downstream");
     }
   }
 
   const optionalChainByDisplayId = new Map<string, Array<string>>();
   const optionalChainMemo = new Map<string, Array<string>>();
   const optionalChainInProgress = new Set<string>();
-  const centralDisplayId = preferredStartId;
-  const isMultipleNode = (displayId: string): boolean =>
-    selectedNodeByDisplayId.get(displayId)?.path?.multiple === true;
+  const entityReferenceBoundaryTransitionKeys = new Set<string>(
+    selectedEdges
+      .filter((edge) => edge.isEntityReferenceBoundary)
+      .map((edge) => `${edge.sourceDisplayId}=>${edge.targetDisplayId}`),
+  );
+  const isMultipleNode = (displayId: string): boolean => {
+    if (displayId === centralDisplayId) {
+      return false;
+    }
+    const node = selectedNodeByDisplayId.get(displayId);
+    if (!node) {
+      return false;
+    }
+    if (makeAllFieldsOptional) {
+      return true;
+    }
+    if (makeAllEntityReferencesOptional) {
+      const parentId = parentByDisplayId.get(displayId);
+      if (
+        parentId &&
+        entityReferenceBoundaryTransitionKeys.has(`${parentId}=>${displayId}`)
+      ) {
+        return true;
+      }
+    }
+    return node.path?.multiple === true;
+  };
   const getOptionalChain = (displayId: string): Array<string> => {
     const memoized = optionalChainMemo.get(displayId);
     if (memoized) {
@@ -493,21 +370,12 @@ function buildSelectAst({
     if (optionalChainInProgress.has(displayId)) {
       return [];
     }
-    if (displayId === centralDisplayId) {
-      optionalChainMemo.set(displayId, []);
-      return [];
-    }
     optionalChainInProgress.add(displayId);
     const parentId = parentByDisplayId.get(displayId) ?? null;
     const parentChain = parentId ? getOptionalChain(parentId) : [];
-    // Keep a single OPTIONAL boundary per branch: once an ancestor is optional,
-    // descendants stay in that same OPTIONAL instead of nesting redundant OPTIONALs.
-    const chain =
-      parentChain.length > 0
-        ? [...parentChain]
-        : isMultipleNode(displayId)
-          ? [displayId]
-          : [];
+    const chain = isMultipleNode(displayId)
+      ? [...parentChain, displayId]
+      : [...parentChain];
     optionalChainInProgress.delete(displayId);
     optionalChainMemo.set(displayId, chain);
     return chain;
@@ -518,6 +386,46 @@ function buildSelectAst({
 
   const sourceIdOccurrences = new Map<string, number>();
   const preferredSelectVariableByDisplayId = new Map<string, string>();
+  const variableBaseByDisplayId = new Map<string, string>();
+
+  const getNodeNamingSource = (displayId: string): string => {
+    const node = selectedNodeByDisplayId.get(displayId);
+    const explicitName = readFieldString(node?.path?.fields.name);
+    return explicitName.length > 0
+      ? explicitName
+      : (node?.sourcePathId ?? displayId);
+  };
+  const getVariableBaseForDisplayId = (displayId: string): string => {
+    const cached = variableBaseByDisplayId.get(displayId);
+    if (cached) {
+      return cached;
+    }
+    const node = selectedNodeByDisplayId.get(displayId);
+    if (!node) {
+      const fallback = toVarSafeFragment(displayId);
+      variableBaseByDisplayId.set(displayId, fallback);
+      return fallback;
+    }
+    const currentNodeBase = toVarSafeFragment(getNodeNamingSource(displayId));
+    const entityReferenceAncestorParts: Array<string> = [];
+    let current = parentByDisplayId.get(displayId);
+    while (current) {
+      const ancestor = selectedNodeByDisplayId.get(current);
+      if (ancestor && isEntityReferenceNode(ancestor)) {
+        entityReferenceAncestorParts.push(
+          toVarSafeFragment(getNodeNamingSource(current)),
+        );
+      }
+      current = parentByDisplayId.get(current);
+    }
+    const parts =
+      entityReferenceAncestorParts.length > 0
+        ? [...entityReferenceAncestorParts.reverse(), currentNodeBase]
+        : [currentNodeBase];
+    const base = toVarSafeFragment(parts.join("_"));
+    variableBaseByDisplayId.set(displayId, base);
+    return base;
+  };
 
   for (const displayId of orderedDisplayIds) {
     const node = selectedNodeByDisplayId.get(displayId);
@@ -525,11 +433,10 @@ function buildSelectAst({
       continue;
     }
 
-    const base = toVarSafeFragment(node.sourcePathId);
+    const base = getVariableBaseForDisplayId(displayId);
     const count = sourceIdOccurrences.get(base) ?? 0;
     sourceIdOccurrences.set(base, count + 1);
-    const variableName =
-      count === 0 ? `${base}_node` : `${base}_node_${String(count + 1)}`;
+    const variableName = count === 0 ? base : `${base}_${String(count + 1)}`;
     preferredSelectVariableByDisplayId.set(displayId, variableName);
   }
 
@@ -542,7 +449,29 @@ function buildSelectAst({
   const firstEmissionIdByDisplayId = new Map<string, string>();
   const transitionCommentsByEmissionId = new Map<string, Array<string>>();
   const nodeNameByDisplayId = new Map<string, string>();
+  const emittedPrefixVarByBoundaryAndTokens = new Map<string, string>();
   let emissionCounter = 0;
+  const recordEmission = ({
+    emissionId,
+    key,
+    depth,
+    ownerDisplayId,
+  }: {
+    emissionId: string;
+    key: string;
+    depth: number;
+    ownerDisplayId: string | null;
+  }): void => {
+    emissionOrder.push({
+      id: emissionId,
+      key,
+      depth,
+      ownerDisplayId,
+    });
+    if (ownerDisplayId && !firstEmissionIdByDisplayId.has(ownerDisplayId)) {
+      firstEmissionIdByDisplayId.set(ownerDisplayId, emissionId);
+    }
+  };
 
   function addTriple(
     subject: Term,
@@ -569,8 +498,8 @@ function buildSelectAst({
       triples.push(nextTriple);
       triplesWithDepth.push(next);
       tripleByKey.set(key, next);
-      emissionOrder.push({
-        id: emissionId,
+      recordEmission({
+        emissionId,
         key,
         depth: normalizedDepth,
         ownerDisplayId,
@@ -581,42 +510,14 @@ function buildSelectAst({
       if (normalizedDepth < existing.depth) {
         existing.depth = normalizedDepth;
       }
-      emissionOrder.push({
-        id: emissionId,
+      recordEmission({
+        emissionId,
         key,
         depth: normalizedDepth,
         ownerDisplayId,
       });
       return { key, isNew: false, emissionId };
     }
-  }
-
-  function moveEmissionBefore(
-    emissionId: string,
-    anchorEmissionId: string,
-  ): void {
-    if (emissionId === anchorEmissionId) {
-      return;
-    }
-    const emissionIndex = emissionOrder.findIndex(
-      (entry) => entry.id === emissionId,
-    );
-    const anchorIndex = emissionOrder.findIndex(
-      (entry) => entry.id === anchorEmissionId,
-    );
-    if (emissionIndex < 0 || anchorIndex < 0) {
-      return;
-    }
-
-    const [entry] = emissionOrder.splice(emissionIndex, 1);
-    const nextAnchorIndex = emissionOrder.findIndex(
-      (candidate) => candidate.id === anchorEmissionId,
-    );
-    if (nextAnchorIndex < 0) {
-      emissionOrder.push(entry);
-      return;
-    }
-    emissionOrder.splice(nextAnchorIndex, 0, entry);
   }
 
   const getNodeName = (displayId: string): string => {
@@ -634,6 +535,28 @@ function buildSelectAst({
     nodeNameByDisplayId.set(displayId, normalized);
     return normalized;
   };
+  const formatEntityReferenceTransitionComment = (
+    sourceDisplayId: string,
+    targetDisplayId: string,
+  ): string => {
+    const entityReferenceName = getNodeName(sourceDisplayId);
+    const parentDisplayId = parentByDisplayId.get(sourceDisplayId);
+    const parentName = parentDisplayId
+      ? getNodeName(parentDisplayId)
+      : entityReferenceName;
+    return `# ${parentName} == (${entityReferenceName}) >> ${getNodeName(targetDisplayId)}`;
+  };
+  const transitionMetaByKey = new Map<string, SparqlSelectedEdge>();
+  for (const edge of selectedEdges) {
+    const key = `${edge.sourceDisplayId}=>${edge.targetDisplayId}`;
+    const existing = transitionMetaByKey.get(key);
+    const existingBridge = existing?.bridgePredicateIri?.trim() ?? "";
+    const nextBridge = edge.bridgePredicateIri?.trim() ?? "";
+    if (!existing || (existingBridge.length === 0 && nextBridge.length > 0)) {
+      transitionMetaByKey.set(key, edge);
+    }
+  }
+  const emittedBridgeTransitionKeys = new Set<string>();
 
   function addTransitionComment(
     anchorEmissionId: string,
@@ -669,6 +592,30 @@ function buildSelectAst({
     return candidate;
   }
 
+  const shouldUseOwnerScopedPrefixKeys = ({
+    ownerDisplayId,
+    boundaryContext,
+  }: {
+    ownerDisplayId: string;
+    boundaryContext: string;
+  }): boolean => {
+    if (includeFullPrefixConstraintsWhenCentralNotTopModel) {
+      return true;
+    }
+    if (!boundaryContext.includes("|ref:")) {
+      return false;
+    }
+    // When full prefix constraints are disabled, drop central-node ref-boundary
+    // prefixes that are already implied by its direct parent.
+    if (
+      ownerDisplayId === centralDisplayId &&
+      parentByDisplayId.has(ownerDisplayId)
+    ) {
+      return false;
+    }
+    return true;
+  };
+
   function emitPathRecursively({
     baseVarName,
     tokenPrefix,
@@ -680,6 +627,7 @@ function buildSelectAst({
     selectedVarName,
     sourceVarBase,
     ownerDisplayId,
+    onResolvedStepVar,
   }: {
     baseVarName: string;
     tokenPrefix: Array<string>;
@@ -691,6 +639,10 @@ function buildSelectAst({
     selectedVarName: string;
     sourceVarBase: string;
     ownerDisplayId: string;
+    onResolvedStepVar?: (
+      resolvedStepIndex: number,
+      variableName: string,
+    ) => void;
   }): string {
     if (stepIndex >= predicates.length) {
       return baseVarName;
@@ -703,9 +655,10 @@ function buildSelectAst({
     const nextTokenPrefix = [...tokenPrefix, rawPredicate];
     const depth = displayDepth;
 
-    const useOwnerScopedPrefixKeys =
-      includeFullPrefixConstraintsWhenCentralNotTopModel ||
-      boundaryContext.includes("|ref:");
+    const useOwnerScopedPrefixKeys = shouldUseOwnerScopedPrefixKeys({
+      ownerDisplayId,
+      boundaryContext,
+    });
 
     if (stepIndex + 1 < classes.length) {
       const nextClassRaw = classes[stepIndex + 1];
@@ -738,6 +691,7 @@ function buildSelectAst({
         depth,
         ownerDisplayId,
       );
+      onResolvedStepVar?.(stepIndex + 1, nextVarName);
 
       return emitPathRecursively({
         baseVarName: nextVarName,
@@ -768,6 +722,7 @@ function buildSelectAst({
       depth,
       ownerDisplayId,
     );
+    onResolvedStepVar?.(stepIndex + 1, valueVarName);
     return valueVarName;
   }
 
@@ -777,28 +732,53 @@ function buildSelectAst({
       continue;
     }
 
-    const pathArray = readPathArray(node.path);
+    const pathSegments = readPathSegments(node.path);
+    const { pathArray, classes, predicates } = pathSegments;
     if (pathArray.length === 0) {
       continue;
     }
-
-    const classes = pathArray.filter((_, index) => index % 2 === 0);
-    const predicates = pathArray.filter((_, index) => index % 2 === 1);
     if (classes.length === 0) {
       continue;
+    }
+    let emittedClasses = classes;
+    let emittedPredicates = predicates;
+    if (
+      !includeFullPrefixConstraintsWhenCentralNotTopModel &&
+      displayId === centralDisplayId
+    ) {
+      const parentDisplayId = parentByDisplayId.get(displayId);
+      const parentNode =
+        parentDisplayId !== undefined
+          ? selectedNodeByDisplayId.get(parentDisplayId)
+          : undefined;
+      const parentPathArray = readPathArray(parentNode?.path);
+      const sharedTokenPrefixLength = getSharedTokenPrefixLength(
+        parentPathArray,
+        pathArray,
+      );
+      const trimStepCount = Math.min(
+        predicates.length,
+        Math.floor(sharedTokenPrefixLength / 2),
+      );
+      if (trimStepCount > 0) {
+        emittedClasses = classes.slice(trimStepCount);
+        emittedPredicates = predicates.slice(trimStepCount);
+      }
     }
 
     const selectedVarName =
       preferredSelectVariableByDisplayId.get(displayId) ??
-      `${toVarSafeFragment(node.sourcePathId)}_node`;
-    const sourceVarBase = toVarSafeFragment(node.sourcePathId);
+      getVariableBaseForDisplayId(displayId);
+    const sourceVarBase = getVariableBaseForDisplayId(displayId);
     const displayDepth = depthByDisplayId.get(displayId) ?? 0;
     const boundaryContext = boundaryContextByDisplayId.get(displayId) ?? "root";
-    const useOwnerScopedPrefixKeys =
-      includeFullPrefixConstraintsWhenCentralNotTopModel ||
-      boundaryContext.includes("|ref:");
+    const useOwnerScopedPrefixKeys = shouldUseOwnerScopedPrefixKeys({
+      ownerDisplayId: displayId,
+      boundaryContext,
+    });
 
-    const rootClass = classes[0].replace(/^\^/, "");
+    const parentDisplayId = parentByDisplayId.get(displayId);
+    const rootClass = emittedClasses[0].replace(/^\^/, "");
     const rootPrefixKey = useOwnerScopedPrefixKeys
       ? `${boundaryContext}|class:${rootClass}|owner:${displayId}`
       : `${boundaryContext}|class:${rootClass}`;
@@ -807,51 +787,174 @@ function buildSelectAst({
       `${sourceVarBase}_root`,
       "root",
     );
-    const parentDisplayId = parentByDisplayId.get(displayId);
+    let initialStepIndex = 0;
+    let shouldEmitRootClassConstraint = true;
+    let pathClassesForEmission = emittedClasses;
+    let pathPredicatesForEmission = emittedPredicates;
+
     if (parentDisplayId) {
       const parentNode = selectedNodeByDisplayId.get(parentDisplayId);
       const parentResolvedVar =
         resolvedSelectVariableByDisplayId.get(parentDisplayId);
-      if (parentNode && isEntityReferenceNode(parentNode) && parentResolvedVar) {
-        const parentPathArray = readPathArray(parentNode.path);
-        const parentClasses = parentPathArray.filter((_, index) => index % 2 === 0);
+      if (
+        parentNode &&
+        isEntityReferenceNode(parentNode) &&
+        parentResolvedVar &&
+        emittedClasses[0] === classes[0]
+      ) {
+        const parentSegments = readPathSegments(parentNode.path);
+        const parentClasses = parentSegments.classes;
         const parentTerminalClass =
           parentClasses[parentClasses.length - 1]?.replace(/^\^/, "") ?? "";
         if (parentTerminalClass !== "" && parentTerminalClass === rootClass) {
           rootVarName = parentResolvedVar;
         }
       }
-    }
-    const rootTriple = addTriple(
-      v(rootVarName),
-      iri(RDF_TYPE_IRI),
-      iri(rootClass),
-      displayDepth,
-      displayId,
-    );
-    firstEmissionIdByDisplayId.set(displayId, rootTriple.emissionId);
 
-    const resolvedVar = emitPathRecursively({
-      baseVarName: rootVarName,
-      tokenPrefix: [classes[0]],
-      classes,
-      predicates,
-      stepIndex: 0,
-      displayDepth,
-      boundaryContext,
-      selectedVarName,
-      sourceVarBase,
-      ownerDisplayId: displayId,
-    });
+      const parentSegments = readPathSegments(parentNode?.path);
+      const parentPathArray = parentSegments.pathArray;
+      const parentPredicates = parentSegments.predicates;
+      if (parentResolvedVar && parentPathArray.length > 0) {
+        const sharedTokenPrefixLength = getSharedTokenPrefixLength(
+          parentPathArray,
+          pathArray,
+        );
+        if (
+          parentPredicates.length > 0 &&
+          sharedTokenPrefixLength >= parentPathArray.length
+        ) {
+          rootVarName = parentResolvedVar;
+          initialStepIndex = parentPredicates.length;
+          shouldEmitRootClassConstraint = false;
+          pathClassesForEmission = classes;
+          pathPredicatesForEmission = predicates;
+        }
+      }
+    }
+
+    if (includeFullPrefixConstraintsWhenCentralNotTopModel) {
+      for (let step = pathPredicatesForEmission.length; step >= 0; step -= 1) {
+        const tokenPrefix = buildPathTokenPrefixFromSegments({
+          classes: pathClassesForEmission,
+          predicates: pathPredicatesForEmission,
+          stepIndex: step,
+        });
+        const key = buildPrefixVarLookupKey(boundaryContext, tokenPrefix);
+        const existingVar = emittedPrefixVarByBoundaryAndTokens.get(key);
+        if (!existingVar) {
+          continue;
+        }
+        rootVarName = existingVar;
+        initialStepIndex = step;
+        shouldEmitRootClassConstraint = false;
+        break;
+      }
+    }
+
+    const registerResolvedStepVar = (
+      resolvedStepIndex: number,
+      variableName: string,
+    ): void => {
+      const tokenPrefix = buildPathTokenPrefixFromSegments({
+        classes: pathClassesForEmission,
+        predicates: pathPredicatesForEmission,
+        stepIndex: resolvedStepIndex,
+      });
+      const key = buildPrefixVarLookupKey(boundaryContext, tokenPrefix);
+      if (!emittedPrefixVarByBoundaryAndTokens.has(key)) {
+        emittedPrefixVarByBoundaryAndTokens.set(key, variableName);
+      }
+    };
+
+    if (shouldEmitRootClassConstraint) {
+      addTriple(
+        v(rootVarName),
+        iri(RDF_TYPE_IRI),
+        iri(rootClass),
+        displayDepth,
+        displayId,
+      );
+    }
+    registerResolvedStepVar(initialStepIndex, rootVarName);
+
+    const resolvedVar =
+      initialStepIndex >= pathPredicatesForEmission.length
+        ? rootVarName
+        : emitPathRecursively({
+            baseVarName: rootVarName,
+            tokenPrefix: buildPathTokenPrefixFromSegments({
+              classes: pathClassesForEmission,
+              predicates: pathPredicatesForEmission,
+              stepIndex: initialStepIndex,
+            }),
+            classes: pathClassesForEmission,
+            predicates: pathPredicatesForEmission,
+            stepIndex: initialStepIndex,
+            displayDepth,
+            boundaryContext,
+            selectedVarName,
+            sourceVarBase,
+            ownerDisplayId: displayId,
+            onResolvedStepVar: registerResolvedStepVar,
+          });
     resolvedSelectVariableByDisplayId.set(displayId, resolvedVar);
+
+    if (parentDisplayId) {
+      const transitionKey = `${parentDisplayId}=>${displayId}`;
+      const transitionMeta = transitionMetaByKey.get(transitionKey);
+      const rawBridgePredicate =
+        transitionMeta?.bridgePredicateIri?.trim() ?? "";
+      const parentResolvedVar =
+        resolvedSelectVariableByDisplayId.get(parentDisplayId) ?? null;
+      const isEntityReferenceTransition =
+        transitionMeta?.isEntityReferenceBoundary === true ||
+        isEntityReferenceNode(selectedNodeByDisplayId.get(parentDisplayId));
+
+      if (rawBridgePredicate.length > 0 && parentResolvedVar) {
+        const isInverse = rawBridgePredicate.startsWith("^");
+        const bridgePredicateIri = rawBridgePredicate.replace(/^\^/, "");
+        const bridgeDepth = depthByDisplayId.get(displayId) ?? 0;
+        const bridgeTriple = addTriple(
+          v(isInverse ? resolvedVar : parentResolvedVar),
+          iri(bridgePredicateIri),
+          v(isInverse ? parentResolvedVar : resolvedVar),
+          bridgeDepth,
+          displayId,
+        );
+        addTransitionComment(
+          bridgeTriple.emissionId,
+          isEntityReferenceTransition
+            ? formatEntityReferenceTransitionComment(parentDisplayId, displayId)
+            : `# ${getNodeName(parentDisplayId)} ->> ${getNodeName(displayId)}`,
+        );
+        emittedBridgeTransitionKeys.add(transitionKey);
+      } else {
+        const anchorEmissionId = firstEmissionIdByDisplayId.get(displayId);
+        if (anchorEmissionId) {
+          addTransitionComment(
+            anchorEmissionId,
+            isEntityReferenceTransition
+              ? formatEntityReferenceTransitionComment(
+                  parentDisplayId,
+                  displayId,
+                )
+              : `# ${getNodeName(parentDisplayId)} -> ${getNodeName(displayId)}`,
+          );
+        }
+      }
+    }
   }
 
   for (const edge of selectedEdges) {
+    const transitionKey = `${edge.sourceDisplayId}=>${edge.targetDisplayId}`;
+    if (emittedBridgeTransitionKeys.has(transitionKey)) {
+      continue;
+    }
+
     const rawBridgePredicate = edge.bridgePredicateIri?.trim() ?? "";
     if (rawBridgePredicate.length === 0) {
       continue;
     }
-
     const sourceVar = resolvedSelectVariableByDisplayId.get(
       edge.sourceDisplayId,
     );
@@ -872,95 +975,18 @@ function buildSelectAst({
       bridgeDepth,
       edge.targetDisplayId,
     );
-
-    const childAnchorEmissionId = firstEmissionIdByDisplayId.get(
-      edge.targetDisplayId,
-    );
-    const edgeTransitionKey = `${edge.sourceDisplayId}=>${edge.targetDisplayId}`;
-    const edgeArrow = upstreamTransitionKeys.has(edgeTransitionKey)
-      ? "<<-"
-      : "->>";
-    const edgeComment = `# ${getNodeName(edge.sourceDisplayId)} ${edgeArrow} ${getNodeName(edge.targetDisplayId)}`;
-    addTransitionComment(bridgeTriple.emissionId, edgeComment);
-    if (childAnchorEmissionId) {
-      moveEmissionBefore(bridgeTriple.emissionId, childAnchorEmissionId);
-    }
-  }
-
-  const bridgeTransitionKeys = new Set<string>();
-  const entityReferenceTransitionKeys = new Set<string>();
-  for (const edge of selectedEdges) {
-    const rawBridgePredicate = edge.bridgePredicateIri?.trim() ?? "";
-    const transitionKey = `${edge.sourceDisplayId}=>${edge.targetDisplayId}`;
-    if (rawBridgePredicate.length === 0) {
-      if (edge.isEntityReferenceBoundary) {
-        entityReferenceTransitionKeys.add(transitionKey);
-      }
-      continue;
-    }
-    bridgeTransitionKeys.add(transitionKey);
-    entityReferenceTransitionKeys.add(transitionKey);
-  }
-
-  const handledTransitionKeys = new Set<string>();
-  const nonBridgeEdgeTransitions = selectedEdges
-    .map((edge) => ({
-      source: edge.sourceDisplayId,
-      target: edge.targetDisplayId,
-      key: `${edge.sourceDisplayId}=>${edge.targetDisplayId}`,
-    }))
-    .filter((transition) => !bridgeTransitionKeys.has(transition.key))
-    .sort((a, b) => {
-      if (a.source !== b.source) {
-        return a.source.localeCompare(b.source);
-      }
-      return a.target.localeCompare(b.target);
-    });
-
-  for (const transition of nonBridgeEdgeTransitions) {
-    const anchorEmissionId = firstEmissionIdByDisplayId.get(transition.target);
-    if (!anchorEmissionId) {
-      continue;
-    }
-
-    const isEntityReferenceTransition = entityReferenceTransitionKeys.has(
-      transition.key,
-    );
-    const arrow = isEntityReferenceTransition
-      ? upstreamTransitionKeys.has(transition.key)
-        ? "<<-"
-        : "->>"
-      : ">";
-    addTransitionComment(
-      anchorEmissionId,
-      `# ${getNodeName(transition.source)} ${arrow} ${getNodeName(transition.target)}`,
-    );
-    handledTransitionKeys.add(transition.key);
-  }
-
-  for (const [childDisplayId, parentDisplayId] of parentByDisplayId.entries()) {
-    const anchorEmissionId = firstEmissionIdByDisplayId.get(childDisplayId);
-    if (!anchorEmissionId) {
-      continue;
-    }
-
-    const transitionKey = `${parentDisplayId}=>${childDisplayId}`;
-    if (handledTransitionKeys.has(transitionKey)) {
-      continue;
-    }
-    if (bridgeTransitionKeys.has(transitionKey)) {
-      continue;
-    }
-
     const isEntityReferenceTransition =
-      entityReferenceTransitionKeys.has(transitionKey);
-    const arrow = isEntityReferenceTransition
-      ? upstreamTransitionKeys.has(transitionKey)
-        ? "<<-"
-        : "->>"
-      : ">";
-    const comment = `# ${getNodeName(parentDisplayId)} ${arrow} ${getNodeName(childDisplayId)}`;
-    addTransitionComment(anchorEmissionId, comment);
+      edge.isEntityReferenceBoundary ||
+      isEntityReferenceNode(selectedNodeByDisplayId.get(edge.sourceDisplayId));
+    addTransitionComment(
+      bridgeTriple.emissionId,
+      isEntityReferenceTransition
+        ? formatEntityReferenceTransitionComment(
+            edge.sourceDisplayId,
+            edge.targetDisplayId,
+          )
+        : `# ${getNodeName(edge.sourceDisplayId)} ->> ${getNodeName(edge.targetDisplayId)}`,
+    );
   }
 
   if (preferredStartId) {
@@ -984,6 +1010,9 @@ function buildSelectAst({
 
   const resolvedProjectionVars: Array<SelectProjection> = [];
   for (const displayId of orderedDisplayIds) {
+    if (projectedDisplayNodeIds && !projectedDisplayNodeIds.has(displayId)) {
+      continue;
+    }
     const variableName = resolvedSelectVariableByDisplayId.get(displayId);
     if (!variableName) {
       continue;
@@ -1028,6 +1057,7 @@ function buildSelectAst({
     selectProjections,
     optionalChainByDisplayId,
     resolvedSelectVariableByDisplayId,
+    centralDisplayId: preferredStartId,
   };
 }
 
@@ -1075,8 +1105,11 @@ function renderWhereSection(
   orderedEmissions: Array<TripleEmission>,
   transitionCommentsByEmissionId: Map<string, Array<string>>,
   optionalChainByDisplayId: Map<string, Array<string>>,
+  centralDisplayId: string | null,
   excludedTripleKeys: Set<string> = new Set<string>(),
   includeCentralNodeComment = true,
+  omitClassConstraints = false,
+  disregardTypesOfNonRootNodes = false,
 ): RenderWhereSectionResult {
   const byKey = new Map(triplesWithDepth.map((entry) => [entry.key, entry]));
   const whereEmissions = orderedEmissions
@@ -1120,13 +1153,17 @@ function renderWhereSection(
   const seenRenderedTripleKeys = new Set<string>();
   for (const { emission, tripleEntry } of whereEmissions) {
     const row = tripleEntry.triple;
+    const targetChain =
+      emission.ownerDisplayId !== null &&
+      emission.ownerDisplayId !== centralDisplayId
+        ? (optionalChainByDisplayId.get(emission.ownerDisplayId) ?? [])
+        : [];
+    const dedupedTargetChain = targetChain.filter(
+      (displayId, index) => index === 0 || displayId !== targetChain[index - 1],
+    );
     const isDuplicateTripleEmission =
       excludedTripleKeys.has(tripleEntry.key) ||
       seenRenderedTripleKeys.has(tripleEntry.key);
-    const targetChain =
-      emission.ownerDisplayId !== null
-        ? (optionalChainByDisplayId.get(emission.ownerDisplayId) ?? [])
-        : [];
 
     const indent = "  ".repeat(emission.depth + 1);
     const comments = transitionCommentsByEmissionId.get(emission.id) ?? [];
@@ -1137,25 +1174,26 @@ function renderWhereSection(
       (comment) => !isCentralNodeComment(comment),
     );
 
+    let sharedChainLength = 0;
+    while (
+      sharedChainLength < openOptionals.length &&
+      sharedChainLength < dedupedTargetChain.length &&
+      openOptionals[sharedChainLength].rootDisplayId ===
+        dedupedTargetChain[sharedChainLength]
+    ) {
+      sharedChainLength += 1;
+    }
+    const optionalCloseTarget = sharedChainLength;
+    while (openOptionals.length > optionalCloseTarget) {
+      const closing = openOptionals.pop()!;
+      whereLines.push(`${"  ".repeat(closing.depth + 1)}}`);
+    }
+
     for (const comment of regularComments) {
       whereLines.push("");
       whereLines.push(`${indent}${comment}`);
     }
-
     if (centralComments.length > 0) {
-      let centralLcp = 0;
-      while (
-        centralLcp < openOptionals.length &&
-        centralLcp < targetChain.length &&
-        openOptionals[centralLcp].rootDisplayId === targetChain[centralLcp]
-      ) {
-        centralLcp += 1;
-      }
-      while (openOptionals.length > centralLcp) {
-        const closing = openOptionals.pop()!;
-        whereLines.push(`${"  ".repeat(closing.depth + 1)}}`);
-      }
-
       for (const comment of centralComments) {
         whereLines.push("");
         whereLines.push(comment);
@@ -1166,28 +1204,29 @@ function renderWhereSection(
       continue;
     }
 
-    let lcp = 0;
-    while (
-      lcp < openOptionals.length &&
-      lcp < targetChain.length &&
-      openOptionals[lcp].rootDisplayId === targetChain[lcp]
-    ) {
-      lcp += 1;
-    }
-    while (openOptionals.length > lcp) {
-      const closing = openOptionals.pop()!;
-      whereLines.push(`${"  ".repeat(closing.depth + 1)}}`);
-    }
-    for (let i = lcp; i < targetChain.length; i += 1) {
+    for (let i = sharedChainLength; i < dedupedTargetChain.length; i += 1) {
       openOptionals.push({
-        rootDisplayId: targetChain[i],
+        rootDisplayId: dedupedTargetChain[i],
         depth: emission.depth,
       });
       whereLines.push(`${indent}OPTIONAL {`);
     }
     seenRenderedTripleKeys.add(tripleEntry.key);
+    const tripleLine = `${indent}${renderTerm(row.subject, ast.prefixes)} ${renderTerm(row.predicate, ast.prefixes)} ${renderTerm(row.object, ast.prefixes)} .`;
+    const isClassConstraint =
+      row.predicate.termType === "NamedNode" &&
+      row.predicate.value === RDF_TYPE_IRI;
+    const isRootModelTypeConstraint =
+      row.subject.termType === "Variable" &&
+      row.subject.value.endsWith("_root");
+    const shouldCommentOutClassConstraint =
+      isClassConstraint &&
+      (omitClassConstraints ||
+        (disregardTypesOfNonRootNodes && !isRootModelTypeConstraint));
     whereLines.push(
-      `${indent}${renderTerm(row.subject, ast.prefixes)} ${renderTerm(row.predicate, ast.prefixes)} ${renderTerm(row.object, ast.prefixes)} .`,
+      shouldCommentOutClassConstraint
+        ? `${indent}# ${tripleLine.trimStart()}`
+        : tripleLine,
     );
   }
   while (openOptionals.length > 0) {
@@ -1205,9 +1244,14 @@ function renderQuery(
   transitionCommentsByEmissionId: Map<string, Array<string>>,
   selectProjections: Array<SelectProjection>,
   optionalChainByDisplayId: Map<string, Array<string>>,
+  centralDisplayId: string | null,
   extraSelectProjections: Array<SelectProjection>,
   extraWhereBlocks: Array<Array<string>>,
   extraUsedPrefixes: Set<string>,
+  omitClassConstraints = false,
+  disregardTypesOfNonRootNodes = false,
+  namedGraphInput = "",
+  queryLimit = 100,
   orderByVariableName?: string,
   orderByDirection: "ASC" | "DESC" = "DESC",
 ): string {
@@ -1228,6 +1272,11 @@ function renderQuery(
     orderedEmissions,
     transitionCommentsByEmissionId,
     optionalChainByDisplayId,
+    centralDisplayId,
+    new Set<string>(),
+    true,
+    omitClassConstraints,
+    disregardTypesOfNonRootNodes,
   );
   const allUsedPrefixes = new Set<string>(renderedWhere.usedPrefixes);
   for (const prefix of extraUsedPrefixes) {
@@ -1244,131 +1293,59 @@ function renderQuery(
     whereLines.push(...block);
   }
 
+  const normalizedLimit =
+    Number.isFinite(queryLimit) && queryLimit > 0
+      ? Math.trunc(queryLimit)
+      : 100;
+  const namedGraph = namedGraphInput.trim();
+  const fromNamedLine = namedGraph.length > 0 ? `FROM <${namedGraph}>` : null;
+
   return [
     ...prefixLines,
     "",
     "SELECT DISTINCT",
     ...selectLines,
+    ...(fromNamedLine ? [fromNamedLine] : []),
     "WHERE {",
     ...whereLines,
     "}",
     ...(orderByVariableName
       ? [`ORDER BY ${orderByDirection}(?${orderByVariableName})`]
       : []),
+    `LIMIT ${String(normalizedLimit)}`,
   ].join("\n");
-}
-
-function buildBehindCountSubgraphs({
-  selectedNodes,
-  selectedEdges,
-  firstSelectedDisplayNodeId,
-  countNodeDisplayIds,
-}: {
-  selectedNodes: Array<SparqlSelectedNode>;
-  selectedEdges: Array<SparqlSelectedEdge>;
-  firstSelectedDisplayNodeId: string | null;
-  countNodeDisplayIds: Array<string>;
-}): {
-  excludedFromOuter: Set<string>;
-  descendantsByCountNodeId: Map<string, Set<string>>;
-  parentByCountNodeId: Map<string, string>;
-} {
-  const selectedIds = new Set(selectedNodes.map((node) => node.displayId));
-  const adjacency = new Map<string, Set<string>>();
-  for (const id of selectedIds) {
-    adjacency.set(id, new Set<string>());
-  }
-  for (const edge of selectedEdges) {
-    if (
-      !selectedIds.has(edge.sourceDisplayId) ||
-      !selectedIds.has(edge.targetDisplayId)
-    ) {
-      continue;
-    }
-    adjacency.get(edge.sourceDisplayId)!.add(edge.targetDisplayId);
-    adjacency.get(edge.targetDisplayId)!.add(edge.sourceDisplayId);
-  }
-
-  const startId =
-    firstSelectedDisplayNodeId && selectedIds.has(firstSelectedDisplayNodeId)
-      ? firstSelectedDisplayNodeId
-      : (selectedNodes[0]?.displayId ?? null);
-  if (!startId) {
-    return {
-      excludedFromOuter: new Set<string>(),
-      descendantsByCountNodeId: new Map(),
-      parentByCountNodeId: new Map(),
-    };
-  }
-
-  const children = new Map<string, Array<string>>();
-  const parentByNodeId = new Map<string, string>();
-  const connected = new Set<string>([startId]);
-  const queue: Array<string> = [startId];
-  while (queue.length > 0) {
-    const current = queue.shift()!;
-    const sortedNeighbors = Array.from(adjacency.get(current) ?? []).sort();
-    for (const neighbor of sortedNeighbors) {
-      if (connected.has(neighbor)) {
-        continue;
-      }
-      connected.add(neighbor);
-      parentByNodeId.set(neighbor, current);
-      const list = children.get(current) ?? [];
-      list.push(neighbor);
-      children.set(current, list);
-      queue.push(neighbor);
-    }
-  }
-
-  const excludedFromOuter = new Set<string>();
-  const descendantsByCountNodeId = new Map<string, Set<string>>();
-  const parentByCountNodeId = new Map<string, string>();
-
-  for (const countId of countNodeDisplayIds) {
-    if (!selectedIds.has(countId) || !connected.has(countId)) {
-      continue;
-    }
-    const descendants = new Set<string>([countId]);
-    excludedFromOuter.add(countId);
-    const parentId = parentByNodeId.get(countId);
-    if (parentId) {
-      parentByCountNodeId.set(countId, parentId);
-    }
-    const stack = [...(children.get(countId) ?? [])];
-    while (stack.length > 0) {
-      const current = stack.pop()!;
-      if (descendants.has(current)) {
-        continue;
-      }
-      descendants.add(current);
-      excludedFromOuter.add(current);
-      for (const child of children.get(current) ?? []) {
-        stack.push(child);
-      }
-    }
-    descendantsByCountNodeId.set(countId, descendants);
-  }
-
-  return { excludedFromOuter, descendantsByCountNodeId, parentByCountNodeId };
 }
 
 export function generateSparqlQuery({
   firstSelectedDisplayNodeId,
   selectedNodes,
   selectedEdges,
+  projectedNodeDisplayIds,
   countNodeDisplayIds,
   includeZeroCountResults: _includeZeroCountResults = false,
   includeFullPrefixConstraintsWhenCentralNotTopModel = false,
+  makeAllFieldsOptional = false,
+  makeAllEntityReferencesOptional = false,
+  omitClassConstraints = false,
+  disregardTypesOfNonRootNodes = false,
+  namedGraphInput = "",
+  queryLimit = 100,
   orderByVariableName,
   orderByDirection = "DESC",
 }: {
   firstSelectedDisplayNodeId: string | null;
   selectedNodes: Array<SparqlSelectedNode>;
   selectedEdges: Array<SparqlSelectedEdge>;
+  projectedNodeDisplayIds?: Array<string>;
   countNodeDisplayIds: Array<string>;
   includeZeroCountResults?: boolean;
   includeFullPrefixConstraintsWhenCentralNotTopModel?: boolean;
+  makeAllFieldsOptional?: boolean;
+  makeAllEntityReferencesOptional?: boolean;
+  omitClassConstraints?: boolean;
+  disregardTypesOfNonRootNodes?: boolean;
+  namedGraphInput?: string;
+  queryLimit?: number;
   orderByVariableName?: string;
   orderByDirection?: "ASC" | "DESC";
 }): string {
@@ -1388,6 +1365,11 @@ export function generateSparqlQuery({
     (node) => !excludedFromOuter.has(node.displayId),
   );
   const outerNodeIds = new Set(outerNodes.map((node) => node.displayId));
+  const projectedOuterNodeIds = new Set(
+    (
+      projectedNodeDisplayIds ?? selectedNodes.map((node) => node.displayId)
+    ).filter((displayId) => outerNodeIds.has(displayId)),
+  );
   const outerEdges = selectedEdges.filter(
     (edge) =>
       outerNodeIds.has(edge.sourceDisplayId) &&
@@ -1402,10 +1384,14 @@ export function generateSparqlQuery({
     selectProjections,
     optionalChainByDisplayId,
     resolvedSelectVariableByDisplayId,
+    centralDisplayId,
   } = buildSelectAst({
     selectedNodes: outerNodes,
     selectedEdges: outerEdges,
     firstSelectedDisplayNodeId,
+    projectedDisplayNodeIds: projectedOuterNodeIds,
+    makeAllFieldsOptional,
+    makeAllEntityReferencesOptional,
     includeFullPrefixConstraintsWhenCentralNotTopModel,
   });
   const nodeNameByDisplayId = new Map(
@@ -1445,6 +1431,8 @@ export function generateSparqlQuery({
       selectedNodes: subNodes,
       selectedEdges: subEdges,
       firstSelectedDisplayNodeId: countId,
+      makeAllFieldsOptional,
+      makeAllEntityReferencesOptional,
       includeFullPrefixConstraintsWhenCentralNotTopModel,
     });
     const outerBoundaryParentVar =
@@ -1483,6 +1471,7 @@ export function generateSparqlQuery({
       subBuild.orderedEmissions,
       subBuild.transitionCommentsByEmissionId,
       subBuild.optionalChainByDisplayId,
+      subBuild.centralDisplayId,
       (() => {
         const outerTripleKeys = new Set(
           triplesWithDepth.map((entry) => entry.key),
@@ -1505,6 +1494,8 @@ export function generateSparqlQuery({
         return excludedSubKeys;
       })(),
       false,
+      omitClassConstraints,
+      disregardTypesOfNonRootNodes,
     );
     for (const prefix of subWhere.usedPrefixes) {
       extraUsedPrefixes.add(prefix);
@@ -1513,7 +1504,7 @@ export function generateSparqlQuery({
     const parentName =
       nodeNameByDisplayId.get(boundaryParentId ?? "") ?? boundaryParentId;
     const countName = nodeNameByDisplayId.get(countId) ?? countId;
-    const boundaryComment = `# ${parentName ?? ""} > ${countName}`;
+    const boundaryComment = `# ${parentName ?? ""} -> ${countName}`;
     const remappedWhereLines = subWhere.whereLines
       .map((line) => {
         let next = line;
@@ -1551,15 +1542,13 @@ export function generateSparqlQuery({
       _includeZeroCountResults
         ? [
             `  ${boundaryComment}`,
-            "  OPTIONAL {",
-            "    {",
+            "   OPTIONAL {",
             selectLine,
-            "      WHERE {",
-            ...remappedWhereLines.map((line) => `      ${line}`),
-            "      }",
+            "    WHERE {",
+            ...remappedWhereLines.map((line) => `    ${line}`),
+            "    }",
             ...(groupByLine ? [groupByLine.replace(/^ {4}/, "      ")] : []),
             "    }",
-            "  }",
           ]
         : [
             `  ${boundaryComment}`,
@@ -1595,9 +1584,14 @@ export function generateSparqlQuery({
     transitionCommentsByEmissionId,
     selectProjections,
     optionalChainByDisplayId,
+    centralDisplayId,
     extraSelectProjections,
     extraWhereBlocks,
     extraUsedPrefixes,
+    omitClassConstraints,
+    disregardTypesOfNonRootNodes,
+    namedGraphInput,
+    queryLimit,
     orderByVariableName,
     orderByDirection,
   );
