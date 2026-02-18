@@ -24,6 +24,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/unist": "^3.0.3",
     "globals": "^17.3.0",
     "oxfmt": "^0.32.0",
     "postcss": "^8.4.49",

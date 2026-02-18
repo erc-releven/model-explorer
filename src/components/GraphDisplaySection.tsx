@@ -317,104 +317,106 @@ export function GraphDisplaySection({
         </p>
       ) : null}
 
-      {activeGroup ? (
-        <div className="mt-2">
-          <h3 className="text-lg font-semibold">Model exploration</h3>
-          <div className="min-w-0 w-full">
-            Select a root type to begin exploring the model. Root type sort
-            order:
-            <div className="inline-flex flex-col items-stretch gap-1 rounded-md border border-neutral-300 bg-white p-1 text-xs text-neutral-700">
-              <Button
-                className={[
-                  "rounded px-2 py-0.5",
-                  rootGroupSortMode === "frequency"
-                    ? "bg-neutral-800 text-white"
-                    : "hover:bg-neutral-100",
-                ].join(" ")}
-                onPress={() => {
-                  setRootGroupSortMode("frequency");
-                }}
-              >
-                # entity references
-              </Button>
-              <Button
-                className={[
-                  "rounded px-2 py-0.5",
-                  rootGroupSortMode === "name"
-                    ? "bg-neutral-800 text-white"
-                    : "hover:bg-neutral-100",
-                ].join(" ")}
-                onPress={() => {
-                  setRootGroupSortMode("name");
-                }}
-              >
-                name
-              </Button>
-            </div>
-            <div className="root-group-scroll flex flex-1 flex-wrap items-center gap-2 pb-1">
-              {displayedRootGroups.map((group) => (
-                <Button
-                  key={group.id}
-                  className="rounded-full border border-neutral-400 bg-white px-2.5 py-1 text-xs font-medium text-neutral-900 shadow-sm hover:bg-neutral-100 whitespace-nowrap"
-                  onPress={() => {
-                    onSelectGroup(group.id);
-                  }}
-                >
-                  {group.name} [{groupReferenceCounts[group.id] ?? 0}]
-                </Button>
-              ))}
-            </div>
-            <p className="mt-1 text-sm text-neutral-600">
-              Click on nodes to add them to a model sub-selection, shift click
-              to add them as count nodes.
-            </p>
-            <div
-              ref={flowViewportRef}
-              className="relative mt-4 h-[29.4rem] w-full overflow-hidden rounded-xl border border-neutral-200"
+      <div className="mt-2">
+        <h3 className="text-lg font-semibold">Model exploration</h3>
+        {activeGroup ? (
+          <p className="text-sm text-neutral-600">
+            model centered on {activeGroup.name}
+          </p>
+        ) : null}
+        <div className="min-w-0 w-full">
+          Select a root type to begin exploring the model. Root type sort order:
+          <div className="inline-flex flex-col items-stretch gap-1 rounded-md border border-neutral-300 bg-white p-1 text-xs text-neutral-700">
+            <Button
+              className={[
+                "rounded px-2 py-0.5",
+                rootGroupSortMode === "frequency"
+                  ? "bg-neutral-800 text-white"
+                  : "hover:bg-neutral-100",
+              ].join(" ")}
+              onPress={() => {
+                setRootGroupSortMode("frequency");
+              }}
             >
-              {flow ? (
-                <ReactFlow
-                  onInit={(instance) => {
-                    setReactFlowInstance(instance);
-                    onFlowInit(instance);
-                  }}
-                  fitView
-                  fitViewOptions={{ padding: 0.15 }}
-                  minZoom={0.02}
-                  nodes={flow.nodes}
-                  edges={flow.edges}
-                  nodesDraggable={false}
-                  nodesConnectable={false}
-                  onNodeClick={onFlowNodeClick}
-                  onEdgeClick={(_, edge) => {
-                    handleEdgeClick(edge);
-                  }}
-                  onEdgeMouseEnter={(event, edge) => {
-                    updateEdgeTooltip(event, edge);
-                  }}
-                  onEdgeMouseMove={(event, edge) => {
-                    updateEdgeTooltip(event, edge);
-                  }}
-                  onEdgeMouseLeave={() => {
-                    setEdgeTooltip(null);
-                  }}
-                >
-                  <Controls />
-                  <Background gap={16} />
-                </ReactFlow>
-              ) : null}
-              {edgeTooltip ? (
-                <div
-                  className="pointer-events-none absolute z-50 rounded border border-neutral-300 bg-white px-2 py-1 text-[11px] text-neutral-800 shadow-md"
-                  style={{ left: edgeTooltip.x, top: edgeTooltip.y }}
-                >
-                  {edgeTooltip.text}
-                </div>
-              ) : null}
-            </div>
+              # entity references
+            </Button>
+            <Button
+              className={[
+                "rounded px-2 py-0.5",
+                rootGroupSortMode === "name"
+                  ? "bg-neutral-800 text-white"
+                  : "hover:bg-neutral-100",
+              ].join(" ")}
+              onPress={() => {
+                setRootGroupSortMode("name");
+              }}
+            >
+              name
+            </Button>
+          </div>
+          <div className="root-group-scroll flex flex-1 flex-wrap items-center gap-2 pb-1">
+            {displayedRootGroups.map((group) => (
+              <Button
+                key={group.id}
+                className="rounded-full border border-neutral-400 bg-white px-2.5 py-1 text-xs font-medium text-neutral-900 shadow-sm hover:bg-neutral-100 whitespace-nowrap"
+                onPress={() => {
+                  onSelectGroup(group.id);
+                }}
+              >
+                {group.name} [{groupReferenceCounts[group.id] ?? 0}]
+              </Button>
+            ))}
+          </div>
+          <p className="mt-1 text-sm text-neutral-600">
+            Click on nodes to add them to a model sub-selection, shift click to
+            add them as count nodes.
+          </p>
+          <div
+            ref={flowViewportRef}
+            className="relative mt-4 h-[29.4rem] w-full overflow-hidden rounded-xl border border-neutral-200"
+          >
+            {flow ? (
+              <ReactFlow
+                onInit={(instance) => {
+                  setReactFlowInstance(instance);
+                  onFlowInit(instance);
+                }}
+                fitView
+                fitViewOptions={{ padding: 0.15 }}
+                minZoom={0.02}
+                nodes={flow.nodes}
+                edges={flow.edges}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                onNodeClick={onFlowNodeClick}
+                onEdgeClick={(_, edge) => {
+                  handleEdgeClick(edge);
+                }}
+                onEdgeMouseEnter={(event, edge) => {
+                  updateEdgeTooltip(event, edge);
+                }}
+                onEdgeMouseMove={(event, edge) => {
+                  updateEdgeTooltip(event, edge);
+                }}
+                onEdgeMouseLeave={() => {
+                  setEdgeTooltip(null);
+                }}
+              >
+                <Controls />
+                <Background gap={16} />
+              </ReactFlow>
+            ) : null}
+            {edgeTooltip ? (
+              <div
+                className="pointer-events-none absolute z-50 rounded border border-neutral-300 bg-white px-2 py-1 text-[11px] text-neutral-800 shadow-md"
+                style={{ left: edgeTooltip.x, top: edgeTooltip.y }}
+              >
+                {edgeTooltip.text}
+              </div>
+            ) : null}
           </div>
         </div>
-      ) : null}
+      </div>
     </>
   );
 }
