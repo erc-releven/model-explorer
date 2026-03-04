@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  .theme-light {
+    --app-bg: #f6f7fb;
+    --app-border: #d6dae3;
+    --app-code-bg: #eef2ff;
+    --app-code-fg: #23334a;
+    --app-muted: #55657a;
+    --app-surface: #ffffff;
+    --app-surface-hover: #eef3fb;
+    --app-surface-subtle: #f7f9fc;
+    --app-text: #0f172a;
+  }
+
+  .theme-dark {
+    --app-bg: #11151d;
+    --app-border: #323f52;
+    --app-code-bg: #1d2633;
+    --app-code-fg: #d1def4;
+    --app-muted: #9fb0c8;
+    --app-surface: #161e2a;
+    --app-surface-hover: #202b3b;
+    --app-surface-subtle: #1b2534;
+    --app-text: #e6edf8;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  section {
+    @apply rounded-panel border;
+    border-color: var(--app-border);
+  }
+
+  body {
+    @apply m-0 antialiased;
+    background-color: var(--app-bg);
+    color: var(--app-text);
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+}
+
+@layer components {
+  .react-flow__handle {
+    width: 0 !important;
+    height: 0 !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .panel {
+    @apply rounded-panel border;
+    background-color: var(--app-surface);
+    border-color: var(--app-border);
+    color: var(--app-text);
+  }
+
+  .loader-shell {
+    @apply rounded-panel border;
+    background-color: var(--app-surface-subtle);
+    border-color: var(--app-border);
+    color: var(--app-text);
+  }
+
+  .app-surface-subtle {
+    background-color: var(--app-surface-subtle);
+  }
+
+  .app-border {
+    border-color: var(--app-border) !important;
+  }
+
+  .app-control-chip {
+    background-color: var(--app-surface);
+    border-color: var(--app-border) !important;
+  }
+
+  .app-control-chip:hover {
+    background-color: var(--app-surface-hover);
+  }
+
+  .app-code-surface {
+    background-color: var(--app-code-bg);
+    color: var(--app-code-fg);
+  }
+
+  .app-muted-text {
+    color: var(--app-muted);
+  }
+}
