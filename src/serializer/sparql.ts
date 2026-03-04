@@ -352,7 +352,7 @@ function compileAstToSparql(
   }
 
   interface NodeSerializationContext {
-    pathArray: Array<string>;
+    pathArray?: Array<string>;
     variable: string;
   }
 
@@ -361,6 +361,8 @@ function compileAstToSparql(
     parent: ModelAstNode | undefined,
     nodePathArray: Array<string>,
     parentContext: NodeSerializationContext | undefined,
+    upwardLinkVariable: undefined | string,
+    upwardTerminalVariable: undefined | string,
   ): void {
     const nodeId = stringifyPath(node.data.id_array);
     if (!nodeVisitOrder.has(nodeId)) {
@@ -375,7 +377,7 @@ function compileAstToSparql(
     }
 
     const startIndex =
-      parentContext == null
+      parentContext?.pathArray == null
         ? 0
         : getCommonPrefixLength(nodePathArray, parentContext.pathArray);
     const predicateIndexes: Array<number> = [];
@@ -392,14 +394,21 @@ function compileAstToSparql(
 
     const parentVariable = parentContext?.variable ?? nodeVariable;
     const isUpwardEdge = isUpwardChildNode(node, parent);
+    const parentNodeTerminalClass =
+      parent?.data.targetPath.path_array.at(-1);
     const hasSharedTerminalTypeWithParent =
       isUpwardEdge &&
-      parentContext != null &&
       nodePathArray.length > 0 &&
-      parentContext.pathArray.length > 0 &&
-      nodePathArray.at(-1) === parentContext.pathArray.at(-1);
-    const terminalVariable = isUpwardEdge ? parentVariable : nodeVariable;
-    let currentVariable = isUpwardEdge ? nodeVariable : parentVariable;
+      parentNodeTerminalClass != null &&
+      nodePathArray.at(-1) === parentNodeTerminalClass;
+    const terminalVariable = isUpwardEdge
+      ? (upwardTerminalVariable ?? parentVariable)
+      : nodeVariable;
+    const upwardInitialVariable =
+      startIndex > 0 ? parentVariable : (upwardLinkVariable ?? nodeVariable);
+    let currentVariable = isUpwardEdge
+      ? upwardInitialVariable
+      : parentVariable;
     let predicateCursor = 0;
     let emittedStatements = 0;
 
@@ -436,9 +445,13 @@ function compileAstToSparql(
 
       const isLastPredicate =
         predicateIndexes[predicateIndexes.length - 1] === pathIndex;
-      const nextVariable = isLastPredicate
-        ? terminalVariable
-        : `${nodeVariable}_p${String(predicateCursor)}`;
+      const isFirstGeneratedPredicateForUpwardEdge =
+        isUpwardEdge && startIndex > 0 && pathIndex === startIndex;
+      const nextVariable = isFirstGeneratedPredicateForUpwardEdge
+        ? nodeVariable
+        : isLastPredicate
+          ? terminalVariable
+          : `${nodeVariable}_p${String(predicateCursor)}`;
 
       whereStatements.push({
         line: `${indent}${currentVariable} ${pathTerm} ${nextVariable} .`,
@@ -467,7 +480,8 @@ function compileAstToSparql(
     node: ModelAstNode,
     parent: ModelAstNode | undefined,
     parentContext: NodeSerializationContext | undefined,
-  ): void {
+  ): undefined | string {
+    const incomingParentVariable = parentContext?.variable;
     const nodeId = stringifyPath(node.data.id_array);
     const nodeVariable = nodeVariableById.get(nodeId);
     const nodePathArray = getEffectiveNodePathArray(node, parent);
@@ -485,15 +499,43 @@ function compileAstToSparql(
       (child) => !isUpwardChildNode(child, node),
     );
 
+    let upwardLinkVariable: undefined | string;
     for (const upwardChild of upwardChildren) {
-      emitNodeWithOrderedEdges(upwardChild, node, nodeContext);
+      const upwardChildPathArray = getEffectiveNodePathArray(upwardChild, node);
+      const upwardParentContext =
+        nodeVariable == null ? undefined : { variable: nodeVariable };
+      const upwardVariable = emitNodeWithOrderedEdges(
+        upwardChild,
+        node,
+        upwardParentContext,
+      );
+
+      if (
+        upwardVariable != null &&
+        upwardChild.data.parentEdgeEntityReferencePath == null
+      ) {
+        upwardLinkVariable = upwardVariable;
+        parentContext = {
+          pathArray: upwardChildPathArray,
+          variable: upwardVariable,
+        };
+      }
     }
 
-    emitNodeStatements(node, parent, nodePathArray, parentContext);
+    emitNodeStatements(
+      node,
+      parent,
+      nodePathArray,
+      parentContext,
+      upwardLinkVariable,
+      incomingParentVariable,
+    );
 
     for (const downwardChild of downwardChildren) {
       emitNodeWithOrderedEdges(downwardChild, node, nodeContext);
     }
+
+    return nodeVariable;
   }
 
   for (const root of tree.children) {

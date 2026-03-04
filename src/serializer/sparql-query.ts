@@ -43,9 +43,20 @@ function extractCountFromSparqlResult(payload: unknown): number {
 
 const countResultCache = new Map<string, number>();
 const pendingCountRequestsByKey = new Map<string, Promise<number>>();
+let countRequestQueue: Promise<void> = Promise.resolve();
 
 function createCountCacheKey(endpoint: string, query: string): string {
   return `${endpoint}\n${query}`;
+}
+
+function enqueueCountRequest<T>(task: () => Promise<T>): Promise<T> {
+  const runTask = countRequestQueue.then(task);
+  countRequestQueue = runTask.then(
+    () => undefined,
+    () => undefined,
+  );
+
+  return runTask;
 }
 
 function buildTraversalNodesForPath(nodePath: Array<string>): Scenario["nodes"] {
@@ -86,7 +97,7 @@ async function fetchCountForQuery(endpoint: string, query: string): Promise<numb
     return await pendingRequest;
   }
 
-  const requestPromise = (async (): Promise<number> => {
+  const requestPromise = enqueueCountRequest(async (): Promise<number> => {
     const response = await fetch(endpoint, {
       body: new URLSearchParams({ query }).toString(),
       headers: {
@@ -115,7 +126,7 @@ async function fetchCountForQuery(endpoint: string, query: string): Promise<numb
     countResultCache.set(cacheKey, count);
 
     return count;
-  })();
+  });
 
   pendingCountRequestsByKey.set(cacheKey, requestPromise);
 
@@ -160,10 +171,8 @@ export async function fetchCountForNodePath(
     },
     pathbuilder,
   );
-  const [distinctCount, totalCount] = await Promise.all([
-    fetchCountForQuery(endpoint, distinctQuery),
-    fetchCountForQuery(endpoint, totalQuery),
-  ]);
+  const distinctCount = await fetchCountForQuery(endpoint, distinctQuery);
+  const totalCount = await fetchCountForQuery(endpoint, totalQuery);
 
   return { distinctCount, totalCount };
 }

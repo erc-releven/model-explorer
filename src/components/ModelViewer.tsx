@@ -293,7 +293,9 @@ export function ModelViewer({
                     });
                   }}
                 >
-                  {`${path.name} (${String(instanceCountByPathId[path.id] ?? "...")})`}
+                  {instanceCountByPathId[path.id] == null
+                    ? path.name
+                    : `${path.name} (${String(instanceCountByPathId[path.id])})`}
                 </button>
               </Tooltip>
             ))}
