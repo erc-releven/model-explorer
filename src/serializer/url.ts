@@ -93,8 +93,8 @@ export function parseModelStateFromSearch(search: string): Scenario {
       ? undefined
       : Number.parseInt(limitParam, 10);
   const sparql = normalizeSparqlConfig({
-    alwaysIncludeFullPrefixConstraints: parseBooleanParam(
-      params.get("alwaysIncludeFullPrefixConstraints"),
+    omitPathPrefixesUnlessExplicitlySelected: parseBooleanParam(
+      params.get("omitPathPrefixesUnlessExplicitlySelected"),
     ),
     countDistinct: parseBooleanParam(params.get("countDistinct")),
     direction: params.get("direction") === "DESC" ? "DESC" : "ASC",
@@ -160,12 +160,12 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
   }
 
   if (
-    modelState.sparql.alwaysIncludeFullPrefixConstraints !==
-    defaultSparqlConfig.alwaysIncludeFullPrefixConstraints
+    modelState.sparql.omitPathPrefixesUnlessExplicitlySelected !==
+    defaultSparqlConfig.omitPathPrefixesUnlessExplicitlySelected
   ) {
     params.set(
-      "alwaysIncludeFullPrefixConstraints",
-      String(modelState.sparql.alwaysIncludeFullPrefixConstraints),
+      "omitPathPrefixesUnlessExplicitlySelected",
+      String(modelState.sparql.omitPathPrefixesUnlessExplicitlySelected),
     );
   }
 

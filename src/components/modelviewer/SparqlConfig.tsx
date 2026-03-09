@@ -325,12 +325,12 @@ export function SparqlConfig({
               <FormControlLabel
                 control={
                   <Checkbox
-                    checked={sparql.alwaysIncludeFullPrefixConstraints}
+                    checked={sparql.omitPathPrefixesUnlessExplicitlySelected}
                     onChange={(event) => {
                       dispatchModelState({
                         payload: {
                           sparql: {
-                            alwaysIncludeFullPrefixConstraints:
+                            omitPathPrefixesUnlessExplicitlySelected:
                               event.target.checked,
                           },
                         },
@@ -339,7 +339,7 @@ export function SparqlConfig({
                     }}
                   />
                 }
-                label="always include full prefix constraints"
+                label="omit path prefixes unless explicitly selected"
               />
             </LabeledBorderBox>
           </div>

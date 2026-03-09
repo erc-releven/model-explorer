@@ -360,6 +360,7 @@ function compileAstToSparql(
     node: ModelAstNode,
     parent: ModelAstNode | undefined,
     nodePathArray: Array<string>,
+    nodeOwnStatementStart: number,
     parentContext: NodeSerializationContext | undefined,
     upwardLinkVariable: undefined | string,
     upwardTerminalVariable: undefined | string,
@@ -376,10 +377,13 @@ function compileAstToSparql(
       return;
     }
 
-    const startIndex =
-      parentContext?.pathArray == null
-        ? 0
-        : getCommonPrefixLength(nodePathArray, parentContext.pathArray);
+    const isUpwardEdge = isUpwardChildNode(node, parent);
+    const startIndex = parent == null
+      ? 0
+      : Math.min(
+          Math.max(0, nodeOwnStatementStart),
+          nodePathArray.length,
+        );
     const predicateIndexes: Array<number> = [];
 
     for (
@@ -393,7 +397,6 @@ function compileAstToSparql(
     }
 
     const parentVariable = parentContext?.variable ?? nodeVariable;
-    const isUpwardEdge = isUpwardChildNode(node, parent);
     const parentNodeTerminalClass =
       parent?.data.targetPath.path_array.at(-1);
     const hasSharedTerminalTypeWithParent =
@@ -404,8 +407,7 @@ function compileAstToSparql(
     const terminalVariable = isUpwardEdge
       ? (upwardTerminalVariable ?? parentVariable)
       : nodeVariable;
-    const upwardInitialVariable =
-      startIndex > 0 ? parentVariable : (upwardLinkVariable ?? nodeVariable);
+    const upwardInitialVariable = upwardLinkVariable ?? nodeVariable;
     let currentVariable = isUpwardEdge
       ? upwardInitialVariable
       : parentVariable;
@@ -429,7 +431,9 @@ function compileAstToSparql(
           continue;
         }
 
-        const typeStatement = `${currentVariable} a ${pathTerm} .`;
+        const typeSubjectVariable =
+          pathIndex === nodePathArray.length - 1 ? nodeVariable : currentVariable;
+        const typeStatement = `${typeSubjectVariable} a ${pathTerm} .`;
         const shouldCommentTypeStatement =
           shouldDisregardNonRootNodeTypes && pathIndex > 0;
 
@@ -445,13 +449,9 @@ function compileAstToSparql(
 
       const isLastPredicate =
         predicateIndexes[predicateIndexes.length - 1] === pathIndex;
-      const isFirstGeneratedPredicateForUpwardEdge =
-        isUpwardEdge && startIndex > 0 && pathIndex === startIndex;
-      const nextVariable = isFirstGeneratedPredicateForUpwardEdge
-        ? nodeVariable
-        : isLastPredicate
-          ? terminalVariable
-          : `${nodeVariable}_p${String(predicateCursor)}`;
+      const nextVariable = isLastPredicate
+        ? terminalVariable
+        : `${nodeVariable}_p${String(predicateCursor)}`;
 
       whereStatements.push({
         line: `${indent}${currentVariable} ${pathTerm} ${nextVariable} .`,
@@ -485,6 +485,10 @@ function compileAstToSparql(
     const nodeId = stringifyPath(node.data.id_array);
     const nodeVariable = nodeVariableById.get(nodeId);
     const nodePathArray = getEffectiveNodePathArray(node, parent);
+    const nodeOwnStatementStart =
+      parent != null && node.data.parentEdgeEntityReferencePath != null
+        ? node.data.parentEdgeEntityReferencePath.first_own_statement
+        : node.data.targetPath.first_own_statement;
     const nodeContext =
       nodeVariable == null
         ? undefined
@@ -515,10 +519,12 @@ function compileAstToSparql(
         upwardChild.data.parentEdgeEntityReferencePath == null
       ) {
         upwardLinkVariable = upwardVariable;
-        parentContext = {
-          pathArray: upwardChildPathArray,
-          variable: upwardVariable,
-        };
+        if (node.data.parentEdgeEntityReferencePath == null) {
+          parentContext = {
+            pathArray: upwardChildPathArray,
+            variable: upwardVariable,
+          };
+        }
       }
     }
 
@@ -526,6 +532,7 @@ function compileAstToSparql(
       node,
       parent,
       nodePathArray,
+      nodeOwnStatementStart,
       parentContext,
       upwardLinkVariable,
       incomingParentVariable,

@@ -1,7 +1,7 @@
 import type { Parent } from "unist";
 
-import { createGraphFromScenario } from "../components/modelviewer/graph-layout";
 import type { NodeState, Scenario } from "../scenario";
+import { createGraphFromScenario } from "./graph";
 import type { Pathbuilder, PathbuilderPath } from "./pathbuilder";
 
 interface AstNodeData {
@@ -41,9 +41,7 @@ function makeEdgeId(left: string, right: string): string {
   return left < right ? `${left}<->${right}` : `${right}<->${left}`;
 }
 
-function buildGraph(
-  edges: Array<{ source: string; target: string; id: string }>,
-): {
+function buildGraph(edges: Array<{ source: string; target: string; id: string }>): {
   adjacency: Map<string, Array<string>>;
   edgeNodesById: Map<string, [string, string]>;
 } {
@@ -59,10 +57,7 @@ function buildGraph(
     childNeighbors.push(edge.source);
     adjacency.set(edge.target, childNeighbors);
 
-    edgeNodesById.set(makeEdgeId(edge.source, edge.target), [
-      edge.source,
-      edge.target,
-    ]);
+    edgeNodesById.set(makeEdgeId(edge.source, edge.target), [edge.source, edge.target]);
   }
 
   return { adjacency, edgeNodesById };
@@ -131,9 +126,7 @@ export function createSelectedSubgraphAst(
   const parentEntityReferencePathByEdgeId = new Map<string, PathbuilderPath>();
 
   for (const edge of graph.edges) {
-    const edgeData = edge.data as
-      | { entityReferencePath?: PathbuilderPath }
-      | undefined;
+    const edgeData = edge.data as { entityReferencePath?: PathbuilderPath } | undefined;
 
     if (edgeData?.entityReferencePath == null) {
       continue;
@@ -196,9 +189,7 @@ export function createSelectedSubgraphAst(
     }
   }
 
-  const includedNodes = graphNodes.filter((node) =>
-    includedNodeIds.has(node.id),
-  );
+  const includedNodes = graphNodes.filter((node) => includedNodeIds.has(node.id));
   const astNodeById = new Map<string, ModelAstNode>();
 
   for (const node of includedNodes) {
@@ -251,12 +242,8 @@ export function createSelectedSubgraphAst(
     }
 
     astNode.data.parentEdgeEntityReferencePath =
-      parentEntityReferencePathByEdgeId.get(
-        `${parentAstNode.data.id}->${astNode.data.id}`,
-      ) ??
-      parentEntityReferencePathByEdgeId.get(
-        `${astNode.data.id}->${parentAstNode.data.id}`,
-      );
+      parentEntityReferencePathByEdgeId.get(`${parentAstNode.data.id}->${astNode.data.id}`) ??
+      parentEntityReferencePathByEdgeId.get(`${astNode.data.id}->${parentAstNode.data.id}`);
     parentAstNode.children.push(astNode);
   }
 
@@ -265,9 +252,7 @@ export function createSelectedSubgraphAst(
   });
 
   for (const astNode of astNodeById.values()) {
-    astNode.children.sort((left, right) =>
-      left.data.id.localeCompare(right.data.id),
-    );
+    astNode.children.sort((left, right) => left.data.id.localeCompare(right.data.id));
   }
 
   return {

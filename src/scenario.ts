@@ -19,8 +19,8 @@ export interface SparqlConfigState {
   makeAllFieldsOptional: boolean;
   makeEntityReferencesOptional: boolean;
   namedGraph: string;
+  omitPathPrefixesUnlessExplicitlySelected: boolean;
   orderBy: OrderByState;
-  alwaysIncludeFullPrefixConstraints: boolean;
 }
 
 export interface Scenario {
@@ -30,7 +30,6 @@ export interface Scenario {
 }
 
 export const defaultSparqlConfig: SparqlConfigState = {
-  alwaysIncludeFullPrefixConstraints: false,
   countDistinct: false,
   direction: "ASC",
   disregardTypesOfNonRootNodes: false,
@@ -39,6 +38,7 @@ export const defaultSparqlConfig: SparqlConfigState = {
   makeAllFieldsOptional: false,
   makeEntityReferencesOptional: false,
   namedGraph: "",
+  omitPathPrefixesUnlessExplicitlySelected: true,
   orderBy: "none",
 };
 
@@ -136,9 +136,6 @@ export function normalizeSparqlConfig(
       : undefined;
 
   return {
-    alwaysIncludeFullPrefixConstraints:
-      sparqlConfig?.alwaysIncludeFullPrefixConstraints ??
-      defaultSparqlConfig.alwaysIncludeFullPrefixConstraints,
     countDistinct:
       sparqlConfig?.countDistinct ?? defaultSparqlConfig.countDistinct,
     direction: sparqlConfig?.direction === "DESC" ? "DESC" : "ASC",
@@ -156,6 +153,9 @@ export function normalizeSparqlConfig(
       sparqlConfig?.makeEntityReferencesOptional ??
       defaultSparqlConfig.makeEntityReferencesOptional,
     namedGraph: sparqlConfig?.namedGraph ?? defaultSparqlConfig.namedGraph,
+    omitPathPrefixesUnlessExplicitlySelected:
+      sparqlConfig?.omitPathPrefixesUnlessExplicitlySelected ??
+      defaultSparqlConfig.omitPathPrefixesUnlessExplicitlySelected,
     orderBy:
       sparqlConfig?.orderBy === "none" || sparqlConfig?.orderBy?.startsWith("?")
         ? sparqlConfig.orderBy

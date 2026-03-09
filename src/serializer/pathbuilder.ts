@@ -2,6 +2,7 @@ export interface PathbuilderPath {
   group?: string;
   children: Record<string, PathbuilderPath>;
   entity_reference?: string;
+  first_own_statement: number;
   id: string;
   name: string;
   path_array: Array<string>;
@@ -102,6 +103,17 @@ function selectRdfType(pathArray: Array<string>): string {
   return "";
 }
 
+function getCommonPrefixLength(left: Array<string>, right: Array<string>): number {
+  const minLength = Math.min(left.length, right.length);
+  let index = 0;
+
+  while (index < minLength && left[index] === right[index]) {
+    index += 1;
+  }
+
+  return index;
+}
+
 function parsePathbuilderPath(pathElement: Element): PathbuilderPath {
   const id = getDirectChildText(pathElement, "id");
   const name = getDirectChildText(pathElement, "name");
@@ -115,6 +127,7 @@ function parsePathbuilderPath(pathElement: Element): PathbuilderPath {
     group: groupId === "0" ? undefined : groupId,
     children: {},
     entity_reference: isEntityReference && rdf_type.length > 0 ? rdf_type : undefined,
+    first_own_statement: 0,
     id,
     name,
     path_array,
@@ -148,7 +161,15 @@ export function parsePathbuilderXml(xmlContent: string): Pathbuilder {
 
   for (const path of Object.values(pathsById)) {
     if (path.group) {
-      pathsById[path.group]!.children[path.id] = path;
+      const parentPath = pathsById[path.group];
+
+      if (parentPath != null) {
+        parentPath.children[path.id] = path;
+        path.first_own_statement = getCommonPrefixLength(
+          path.path_array,
+          parentPath.path_array,
+        );
+      }
     }
     if (path.entity_reference) {
       for (const candidatePath of Object.values(pathsById)) {
