@@ -5,7 +5,6 @@ import { createGraphFromScenario } from "./graph";
 import type { Pathbuilder, PathbuilderPath } from "./pathbuilder";
 
 interface AstNodeData {
-  expanded: NodeState["expanded"];
   id: string;
   id_array: Array<string>;
   parentEdgeEntityReferencePath?: PathbuilderPath;
@@ -196,13 +195,6 @@ export function createSelectedSubgraphAst(
     astNodeById.set(node.id, {
       children: [],
       data: {
-        expanded: node.data.topExpanded
-          ? node.data.bottomExpanded
-            ? "both"
-            : "top"
-          : node.data.bottomExpanded
-            ? "bottom"
-            : "none",
         id: node.id,
         id_array: node.data.id_array,
         parentEdgeEntityReferencePath: undefined,

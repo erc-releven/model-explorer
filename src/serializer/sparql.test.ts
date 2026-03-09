@@ -9,8 +9,6 @@ import {
   defaultSparqlConfig,
   type NodeState,
   type Scenario,
-  withBottomExpanded,
-  withTopExpanded,
 } from "../scenario";
 import { parsePathbuilderXml, type Pathbuilder } from "./pathbuilder";
 import { serializeScenarioToSparql } from "./sparql";
@@ -178,10 +176,9 @@ function createScenarioFromSelections(
 
     for (let index = 0; index < resolvedPath.length - 1; index += 2) {
       const nodeId = resolvedPath.slice(0, index + 1);
-      const direction = resolvedPath[index + 1] as SelectionDirection;
 
       upsertNodeState(statesById, nodeId, (state) => {
-        return direction === ">" ? withBottomExpanded(state, true) : withTopExpanded(state, true);
+        return state;
       });
     }
 

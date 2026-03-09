@@ -1,21 +1,12 @@
 import {
   defaultScenario,
   defaultSparqlConfig,
-  type ExpandedState,
   type NodeState,
   normalizeSparqlConfig,
   type OrderByState,
   type Scenario,
   type SelectedState,
 } from "../scenario.ts";
-
-function parseExpandedState(value: unknown): ExpandedState {
-  if (value === "both" || value === "bottom" || value === "top") {
-    return value;
-  }
-
-  return "none";
-}
 
 function parseSelectedState(value: unknown): SelectedState {
   if (value === "count" || value === "yes") {
@@ -47,7 +38,6 @@ function parseNodeStateList(values: Array<string>): Array<NodeState> {
       }
 
       nodes.push({
-        expanded: parseExpandedState(candidate.expanded),
         id: candidate.id,
         selected: parseSelectedState(candidate.selected),
       });
@@ -76,7 +66,7 @@ function parseOrderByState(value: null | string): OrderByState | undefined {
     return value;
   }
 
-  if (value != null && value.startsWith("?")) {
+  if (value?.startsWith("?")) {
     return value as `?${string}`;
   }
 
@@ -89,28 +79,18 @@ export function parseModelStateFromSearch(search: string): Scenario {
   const nodes = parseNodeStateList(params.getAll("nodes"));
   const limitParam = params.get("limit");
   const parsedLimit =
-    limitParam == null || limitParam.length === 0
-      ? undefined
-      : Number.parseInt(limitParam, 10);
+    limitParam == null || limitParam.length === 0 ? undefined : Number.parseInt(limitParam, 10);
   const sparql = normalizeSparqlConfig({
     omitPathPrefixesUnlessExplicitlySelected: parseBooleanParam(
       params.get("omitPathPrefixesUnlessExplicitlySelected"),
     ),
     countDistinct: parseBooleanParam(params.get("countDistinct")),
     direction: params.get("direction") === "DESC" ? "DESC" : "ASC",
-    disregardTypesOfNonRootNodes: parseBooleanParam(
-      params.get("disregardTypesOfNonRootNodes"),
-    ),
-    includeZeroCountResults: parseBooleanParam(
-      params.get("includeZeroCountResults"),
-    ),
+    disregardTypesOfNonRootNodes: parseBooleanParam(params.get("disregardTypesOfNonRootNodes")),
+    includeZeroCountResults: parseBooleanParam(params.get("includeZeroCountResults")),
     limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
-    makeAllFieldsOptional: parseBooleanParam(
-      params.get("makeAllFieldsOptional"),
-    ),
-    makeEntityReferencesOptional: parseBooleanParam(
-      params.get("makeEntityReferencesOptional"),
-    ),
+    makeAllFieldsOptional: parseBooleanParam(params.get("makeAllFieldsOptional")),
+    makeEntityReferencesOptional: parseBooleanParam(params.get("makeEntityReferencesOptional")),
     namedGraph: params.get("namedGraph") ?? undefined,
     orderBy: parseOrderByState(params.get("orderBy")),
   });
@@ -149,14 +129,8 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
     );
   }
 
-  if (
-    modelState.sparql.makeAllFieldsOptional !==
-    defaultSparqlConfig.makeAllFieldsOptional
-  ) {
-    params.set(
-      "makeAllFieldsOptional",
-      String(modelState.sparql.makeAllFieldsOptional),
-    );
+  if (modelState.sparql.makeAllFieldsOptional !== defaultSparqlConfig.makeAllFieldsOptional) {
+    params.set("makeAllFieldsOptional", String(modelState.sparql.makeAllFieldsOptional));
   }
 
   if (
@@ -173,14 +147,8 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
     params.set("countDistinct", String(modelState.sparql.countDistinct));
   }
 
-  if (
-    modelState.sparql.includeZeroCountResults !==
-    defaultSparqlConfig.includeZeroCountResults
-  ) {
-    params.set(
-      "includeZeroCountResults",
-      String(modelState.sparql.includeZeroCountResults),
-    );
+  if (modelState.sparql.includeZeroCountResults !== defaultSparqlConfig.includeZeroCountResults) {
+    params.set("includeZeroCountResults", String(modelState.sparql.includeZeroCountResults));
   }
 
   if (modelState.sparql.namedGraph !== defaultSparqlConfig.namedGraph) {
@@ -202,10 +170,6 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
   if (modelState.nodes.length > 0) {
     for (const node of modelState.nodes) {
       const serializableNode: Record<string, unknown> = { id: node.id };
-
-      if (node.expanded !== "none") {
-        serializableNode.expanded = node.expanded;
-      }
 
       if (node.selected !== "no") {
         serializableNode.selected = node.selected;

@@ -4,11 +4,12 @@ import SaveIcon from "@mui/icons-material/Save";
 import { IconButton, Tab, Tabs } from "@mui/material";
 import { type Dispatch, type ReactNode, useEffect, useState } from "react";
 
-import type {
-  Scenario as Scenario,
-  ScenarioAction,
+import {
+  normalizeNodeState,
+  normalizeSparqlConfig,
+  type Scenario,
+  type ScenarioAction,
 } from "../../scenario";
-import { normalizeNodeState, normalizeSparqlConfig } from "../../scenario";
 
 interface ScenarioWorkspaceProps {
   children: ReactNode;
@@ -40,25 +41,22 @@ function parseScenario(value: unknown): null | Scenario {
 
   const nodes = value.nodes;
 
-  if (
-    !Array.isArray(nodes) ||
-    nodes.some((node) => !isRecord(node) || !isStringArray(node.id))
-  ) {
+  if (!Array.isArray(nodes) || nodes.some((node) => !isRecord(node) || !isStringArray(node.id))) {
     return null;
   }
 
-  const normalizedNodes = nodes.map((node) =>
-    normalizeNodeState({
-      expanded: node.expanded as Scenario["nodes"][number]["expanded"],
-      id: node.id,
-      selected: node.selected as Scenario["nodes"][number]["selected"],
-    }),
-  );
+  const normalizedNodes = nodes.map((node) => {
+    const nodeRecord = node as Record<string, unknown>;
+
+    return normalizeNodeState({
+      id: nodeRecord.id as Array<string>,
+      selected: nodeRecord.selected as Scenario["nodes"][number]["selected"],
+    });
+  });
   const normalizedSparqlConfig = normalizeSparqlConfig(
     isRecord(value.sparql) ? value.sparql : undefined,
   );
-  const normalizedXmlSource =
-    typeof value.xmlSource === "string" ? value.xmlSource : "";
+  const normalizedXmlSource = typeof value.xmlSource === "string" ? value.xmlSource : "";
 
   return {
     nodes: normalizedNodes,
@@ -154,9 +152,7 @@ export function ScenarioWorkspace({
 }: ScenarioWorkspaceProps) {
   const createTabValue = "action:create";
   const [activeTab, setActiveTab] = useState("current");
-  const [storedScenarios, setStoredScenarios] = useState<Array<StoredScenario>>(
-    [],
-  );
+  const [storedScenarios, setStoredScenarios] = useState<Array<StoredScenario>>([]);
 
   useEffect(() => {
     setStoredScenarios(readStoredScenarios());
@@ -167,10 +163,7 @@ export function ScenarioWorkspace({
       return;
     }
 
-    window.localStorage.setItem(
-      currentLocalStorageKey,
-      JSON.stringify(scenario),
-    );
+    window.localStorage.setItem(currentLocalStorageKey, JSON.stringify(scenario));
   }, [activeTab, scenario]);
 
   useEffect(() => {
@@ -214,9 +207,7 @@ export function ScenarioWorkspace({
   }
 
   function onDeleteStoredScenario(name: string): void {
-    const nextStoredStates = storedScenarios.filter(
-      (entry) => entry.name !== name,
-    );
+    const nextStoredStates = storedScenarios.filter((entry) => entry.name !== name);
 
     setStoredScenarios(nextStoredStates);
     writeStoredScenarios(nextStoredStates);
@@ -257,9 +248,7 @@ export function ScenarioWorkspace({
             }
 
             const targetName = nextValue.slice("saved:".length);
-            const targetState = storedScenarios.find(
-              (entry) => entry.name === targetName,
-            );
+            const targetState = storedScenarios.find((entry) => entry.name === targetName);
 
             if (targetState == null) {
               return;

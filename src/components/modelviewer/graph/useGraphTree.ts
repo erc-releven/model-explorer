@@ -1,22 +1,8 @@
 import type { Edge } from "@xyflow/react";
-import {
-  type Dispatch,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type Dispatch, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  createDefaultNodeState,
-  isBottomExpanded,
-  isTopExpanded,
-  type Scenario,
-  type ScenarioAction,
-  withBottomExpanded,
-  withTopExpanded,
-} from "../../../scenario";
+import { createDefaultNodeState, type Scenario, type ScenarioAction } from "../../../scenario";
+import { resolveTargetPathForNodePath, stringifyPath } from "../../../serializer/graph";
 import type { Pathbuilder } from "../../../serializer/pathbuilder";
 import { fetchCountForNodePath } from "../../../serializer/sparql-query";
 import { graphEdgeColors, graphNodeBorderColors } from "../../../theme/colors";
@@ -28,8 +14,43 @@ interface UseGraphTreeParams {
   pathbuilder: null | Pathbuilder;
 }
 
-function stringifyPath(idPath: Array<string>): string {
-  return idPath.join("");
+function areNodePathsEqual(left: Array<string>, right: Array<string>): boolean {
+  return left.length === right.length && left.every((part, index) => part === right[index]);
+}
+
+function hasPrefix(path: Array<string>, prefix: Array<string>): boolean {
+  if (path.length < prefix.length) {
+    return false;
+  }
+
+  return prefix.every((part, index) => path[index] === part);
+}
+
+function isVisibleInDirection(
+  path: Array<string>,
+  prefix: Array<string>,
+  direction: "<" | ">",
+): boolean {
+  return (
+    path.length > prefix.length && hasPrefix(path, prefix) && path[prefix.length] === direction
+  );
+}
+
+function appendVisibleNodes(
+  nodes: Scenario["nodes"],
+  nextPaths: Array<Array<string>>,
+): Scenario["nodes"] {
+  const nextNodes = [...nodes];
+
+  for (const path of nextPaths) {
+    if (nextNodes.some((node) => areNodePathsEqual(node.id, path))) {
+      continue;
+    }
+
+    nextNodes.push(createDefaultNodeState(path));
+  }
+
+  return nextNodes;
 }
 
 function getConnectedSelectedEdgeIds(
@@ -42,10 +63,7 @@ function getConnectedSelectedEdgeIds(
     return edgeIds;
   }
 
-  const adjacency = new Map<
-    string,
-    Array<{ edgeId: string; nodeId: string }>
-  >();
+  const adjacency = new Map<string, Array<{ edgeId: string; nodeId: string }>>();
 
   for (const edge of edges) {
     const sourceNeighbors = adjacency.get(edge.source) ?? [];
@@ -60,10 +78,7 @@ function getConnectedSelectedEdgeIds(
   for (const [sourceIndex, sourceNodeId] of selectedNodeIds.entries()) {
     const queue = [sourceNodeId];
     const visited = new Set([sourceNodeId]);
-    const previousByNode = new Map<
-      string,
-      { edgeId: string; nodeId: string }
-    >();
+    const previousByNode = new Map<string, { edgeId: string; nodeId: string }>();
 
     while (queue.length > 0) {
       const currentNodeId = queue.shift()!;
@@ -114,18 +129,11 @@ function getGreenEdgeIdsBehindCountNodes(
 ): Set<string> {
   const greenEdgeIds = new Set<string>();
 
-  if (
-    rootNodeId == null ||
-    countNodeIds.length === 0 ||
-    connectedEdgeIds.size === 0
-  ) {
+  if (rootNodeId == null || countNodeIds.length === 0 || connectedEdgeIds.size === 0) {
     return greenEdgeIds;
   }
 
-  const adjacency = new Map<
-    string,
-    Array<{ edgeId: string; nodeId: string }>
-  >();
+  const adjacency = new Map<string, Array<{ edgeId: string; nodeId: string }>>();
 
   for (const edge of edges) {
     const sourceNeighbors = adjacency.get(edge.source) ?? [];
@@ -153,10 +161,7 @@ function getGreenEdgeIdsBehindCountNodes(
 
       visited.add(neighbor.nodeId);
       parentByNode.set(neighbor.nodeId, currentNodeId);
-      depthByNode.set(
-        neighbor.nodeId,
-        (depthByNode.get(currentNodeId) ?? 0) + 1,
-      );
+      depthByNode.set(neighbor.nodeId, (depthByNode.get(currentNodeId) ?? 0) + 1);
       queue.push(neighbor.nodeId);
     }
   }
@@ -181,11 +186,7 @@ function getGreenEdgeIdsBehindCountNodes(
     const sourceDepth = depthByNode.get(edge.source);
     const targetDepth = depthByNode.get(edge.target);
 
-    if (
-      sourceDepth == null ||
-      targetDepth == null ||
-      sourceDepth === targetDepth
-    ) {
+    if (sourceDepth == null || targetDepth == null || sourceDepth === targetDepth) {
       continue;
     }
 
@@ -215,35 +216,21 @@ export function useGraphTree({
   pathbuilder,
 }: UseGraphTreeParams) {
   const lastExpandedNodeId = useRef<null | string>(null);
-  const previousSparqlConfigSerialized = useRef<string>(
-    JSON.stringify(modelState.sparql),
-  );
+  const previousSparqlConfigSerialized = useRef<string>(JSON.stringify(modelState.sparql));
   const [countByNodeId, setCountByNodeId] = useState<
     Record<string, { distinctCount: number; totalCount: number }>
   >({});
   const onSelectNode = useCallback(
     (idPath: Array<string>, count: boolean) => {
-      function hasPrefix(path: Array<string>, prefix: Array<string>): boolean {
-        if (path.length < prefix.length) {
-          return false;
-        }
-
-        return prefix.every((part, index) => path[index] === part);
-      }
-
       function hasCountAncestor(path: Array<string>): boolean {
         return modelState.nodes.some((node) => {
           return (
-            node.selected === "count" &&
-            node.id.length < path.length &&
-            hasPrefix(path, node.id)
+            node.selected === "count" && node.id.length < path.length && hasPrefix(path, node.id)
           );
         });
       }
 
-      function clearCountNodesIfNoSelection(
-        nodes: Scenario["nodes"],
-      ): Scenario["nodes"] {
+      function clearCountNodesIfNoSelection(nodes: Scenario["nodes"]): Scenario["nodes"] {
         if (nodes.some((node) => node.selected === "yes")) {
           return nodes;
         }
@@ -261,10 +248,7 @@ export function useGraphTree({
       }
 
       const existingNodeIndex = modelState.nodes.findIndex((node) => {
-        return (
-          node.id.length === idPath.length &&
-          node.id.every((nodeId, index) => nodeId === idPath[index])
-        );
+        return areNodePathsEqual(node.id, idPath);
       });
 
       if (existingNodeIndex === -1) {
@@ -335,118 +319,79 @@ export function useGraphTree({
 
   const onExpandTop = useCallback(
     (idPath: Array<string>) => {
-      lastExpandedNodeId.current = idPath.join("");
-      const existingNodeIndex = modelState.nodes.findIndex((node) => {
-        return (
-          node.id.length === idPath.length &&
-          node.id.every((nodeId, index) => nodeId === idPath[index])
-        );
-      });
-
-      if (existingNodeIndex === -1) {
-        dispatchModelState({
-          payload: {
-            nodes: [
-              ...modelState.nodes,
-              { ...createDefaultNodeState(idPath), expanded: "top" },
-            ],
-          },
-          type: "state/setNodes",
-        });
+      if (pathbuilder == null) {
         return;
       }
 
-      const nextNodes = modelState.nodes.map((node, index) => {
-        if (index !== existingNodeIndex) {
-          return node;
-        }
+      lastExpandedNodeId.current = idPath.join("");
+      const targetPath = resolveTargetPathForNodePath(pathbuilder, idPath);
 
-        return {
-          ...withTopExpanded(node, !isTopExpanded(node)),
-        };
+      if (targetPath == null) {
+        return;
+      }
+
+      const nextVisibleTopPaths =
+        targetPath.references.length > 0
+          ? targetPath.references.map((referenceId) => [...idPath, "<", referenceId])
+          : idPath.at(-2) === "<" && targetPath.group != null
+            ? [[...idPath, "<", targetPath.group]]
+            : [];
+
+      if (nextVisibleTopPaths.length === 0) {
+        return;
+      }
+
+      const hasVisibleTopNodes = nextVisibleTopPaths.some((path) => {
+        return modelState.nodes.some((node) => areNodePathsEqual(node.id, path));
       });
+
+      const nextNodes = hasVisibleTopNodes
+        ? modelState.nodes.filter((node) => !isVisibleInDirection(node.id, idPath, "<"))
+        : appendVisibleNodes(modelState.nodes, nextVisibleTopPaths);
 
       dispatchModelState({
         payload: { nodes: nextNodes },
         type: "state/setNodes",
       });
     },
-    [dispatchModelState, modelState.nodes],
+    [dispatchModelState, modelState.nodes, pathbuilder],
   );
 
   const onExpandBottom = useCallback(
     (idPath: Array<string>) => {
-      lastExpandedNodeId.current = idPath.join("");
-      function hasPrefix(path: Array<string>, prefix: Array<string>): boolean {
-        if (path.length < prefix.length) {
-          return false;
-        }
-
-        return prefix.every((part, index) => path[index] === part);
+      if (pathbuilder == null) {
+        return;
       }
 
-      const existingNodeIndex = modelState.nodes.findIndex((node) => {
-        return (
-          node.id.length === idPath.length &&
-          node.id.every((nodeId, index) => nodeId === idPath[index])
-        );
+      lastExpandedNodeId.current = idPath.join("");
+      const targetPath = resolveTargetPathForNodePath(pathbuilder, idPath);
+
+      if (targetPath == null) {
+        return;
+      }
+
+      const nextVisibleBottomPaths = Object.keys(targetPath.children).map((childId) => {
+        return [...idPath, ">", childId];
       });
 
-      if (existingNodeIndex === -1) {
-        dispatchModelState({
-          payload: {
-            nodes: [
-              ...modelState.nodes,
-              { ...createDefaultNodeState(idPath), expanded: "bottom" },
-            ],
-          },
-          type: "state/setNodes",
-        });
+      if (nextVisibleBottomPaths.length === 0) {
         return;
       }
 
-      const targetNode = modelState.nodes[existingNodeIndex]!;
+      const hasVisibleBottomNodes = nextVisibleBottomPaths.some((path) => {
+        return modelState.nodes.some((node) => areNodePathsEqual(node.id, path));
+      });
 
-      if (isBottomExpanded(targetNode)) {
-        const nextNodes = modelState.nodes
-          .filter((node, index) => {
-            if (index === existingNodeIndex) {
-              return true;
-            }
-
-            return !(
-              hasPrefix(node.id, idPath) && node.id.length > idPath.length
-            );
-          })
-          .map((node, index) => {
-            if (index !== existingNodeIndex) {
-              return node;
-            }
-
-            return withBottomExpanded(node, false);
-          });
-
-        dispatchModelState({
-          payload: { nodes: nextNodes },
-          type: "state/setNodes",
-        });
-        return;
-      }
+      const nextNodes = hasVisibleBottomNodes
+        ? modelState.nodes.filter((node) => !isVisibleInDirection(node.id, idPath, ">"))
+        : appendVisibleNodes(modelState.nodes, nextVisibleBottomPaths);
 
       dispatchModelState({
-        payload: {
-          nodes: modelState.nodes.map((node, index) => {
-            if (index !== existingNodeIndex) {
-              return node;
-            }
-
-            return withBottomExpanded(node, true);
-          }),
-        },
+        payload: { nodes: nextNodes },
         type: "state/setNodes",
       });
     },
-    [dispatchModelState, modelState.nodes],
+    [dispatchModelState, modelState.nodes, pathbuilder],
   );
 
   const graphWithoutCounts = useMemo(() => {
@@ -469,14 +414,9 @@ export function useGraphTree({
       return baseGraph;
     }
 
-    const connectedSelectedEdgeIds = getConnectedSelectedEdgeIds(
-      baseGraph.edges,
-      selectedNodeIds,
-    );
+    const connectedSelectedEdgeIds = getConnectedSelectedEdgeIds(baseGraph.edges, selectedNodeIds);
     const rootNodeId =
-      modelState.nodes[0] == null
-        ? undefined
-        : stringifyPath(modelState.nodes[0].id);
+      modelState.nodes[0] == null ? undefined : stringifyPath(modelState.nodes[0].id);
     const greenEdgeIds = getGreenEdgeIdsBehindCountNodes(
       connectedSelectedEdgeIds,
       countNodeIds,
@@ -521,9 +461,7 @@ export function useGraphTree({
 
     setCountByNodeId((previousState) => {
       const nextState = Object.fromEntries(
-        Object.entries(previousState).filter(([nodeId]) =>
-          visibleNodeIds.has(nodeId),
-        ),
+        Object.entries(previousState).filter(([nodeId]) => visibleNodeIds.has(nodeId)),
       );
 
       return Object.keys(nextState).length === Object.keys(previousState).length
@@ -557,9 +495,13 @@ export function useGraphTree({
         setCountByNodeId((previousState) => {
           const previousCounts = previousState[nodeId];
 
+          if (previousCounts == null) {
+            return { ...previousState, [nodeId]: counts };
+          }
+
           if (
-            previousCounts?.distinctCount === counts.distinctCount &&
-            previousCounts?.totalCount === counts.totalCount
+            previousCounts.distinctCount === counts.distinctCount &&
+            previousCounts.totalCount === counts.totalCount
           ) {
             return previousState;
           }

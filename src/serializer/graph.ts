@@ -1,4 +1,4 @@
-import { isBottomExpanded, isTopExpanded, type Scenario, type SelectedState } from "../scenario";
+import type { Scenario, SelectedState } from "../scenario";
 import type { Pathbuilder, PathbuilderPath } from "./pathbuilder";
 
 export interface PathNodeData extends Record<string, unknown> {
@@ -34,8 +34,128 @@ export interface ScenarioGraphEdge {
   targetHandle: "top";
 }
 
-function stringifyPath(path: Array<string>): string {
+interface ResolvedScenarioNode {
+  nodeState: Scenario["nodes"][number];
+  rowIndex: number;
+  targetPath: PathbuilderPath;
+}
+
+export function stringifyPath(path: Array<string>): string {
   return path.join("");
+}
+
+function getDirectParentPath(path: Array<string>): Array<string> {
+  return path.length > 1 ? path.slice(0, -2) : [];
+}
+
+function getRowIndex(path: Array<string>): number {
+  let rowIndex = 0;
+
+  for (let index = 1; index < path.length; index += 2) {
+    if (path[index] === ">") {
+      rowIndex += 1;
+      continue;
+    }
+
+    if (path[index] === "<") {
+      rowIndex -= 1;
+    }
+  }
+
+  return rowIndex;
+}
+
+function countTraversalSteps(path: Array<string>): number {
+  return path.filter((part) => part === ">" || part === "<").length;
+}
+
+export function resolveTargetPathForNodePath(
+  pathbuilder: Pathbuilder,
+  nodePath: Array<string>,
+): PathbuilderPath | undefined {
+  const rootId = nodePath[0];
+
+  if (rootId == null) {
+    return undefined;
+  }
+
+  let currentPath = pathbuilder.getPathById(rootId);
+
+  if (currentPath == null) {
+    return undefined;
+  }
+
+  for (let index = 1; index < nodePath.length; index += 2) {
+    const direction = nodePath[index];
+    const segment = nodePath[index + 1];
+
+    if (direction == null || segment == null) {
+      return undefined;
+    }
+
+    if (direction === ">") {
+      const childPath = currentPath.children[segment] as PathbuilderPath | undefined;
+
+      if (childPath == null) {
+        return undefined;
+      }
+
+      const entityReference = childPath.entity_reference;
+
+      if (entityReference == null) {
+        currentPath = childPath;
+        continue;
+      }
+
+      currentPath = pathbuilder.getPathByType(entityReference) ?? childPath;
+      continue;
+    }
+
+    if (direction !== "<") {
+      return undefined;
+    }
+
+    if (currentPath.references.includes(segment)) {
+      const referencePath = pathbuilder.getPathById(segment);
+
+      if (referencePath == null) {
+        return undefined;
+      }
+
+      currentPath =
+        referencePath.group == null
+          ? referencePath
+          : (pathbuilder.getPathById(referencePath.group) ?? referencePath);
+      continue;
+    }
+
+    if (currentPath.group === segment) {
+      currentPath = pathbuilder.getPathById(segment) ?? currentPath;
+      continue;
+    }
+
+    return undefined;
+  }
+
+  return currentPath;
+}
+
+function isDirectVisibleExtension(
+  visiblePaths: Array<Array<string>>,
+  nodePath: Array<string>,
+  direction: "<" | ">",
+): boolean {
+  const nextLength = nodePath.length + 2;
+  const traversalDepth = countTraversalSteps(nodePath);
+
+  return visiblePaths.some((visiblePath) => {
+    return (
+      visiblePath.length === nextLength &&
+      countTraversalSteps(visiblePath) === traversalDepth + 1 &&
+      visiblePath[nodePath.length] === direction &&
+      nodePath.every((part, index) => visiblePath[index] === part)
+    );
+  });
 }
 
 function createPathNode(
@@ -69,6 +189,69 @@ function createPathNode(
   };
 }
 
+function createEdgeForNode(
+  nodePath: Array<string>,
+  nodeTargetPath: PathbuilderPath,
+  parentPath: Array<string>,
+  parentTargetPath: PathbuilderPath,
+  pathbuilder: Pathbuilder,
+): ScenarioGraphEdge | undefined {
+  const direction = nodePath.at(-2);
+  const segment = nodePath.at(-1);
+
+  if (direction == null || segment == null) {
+    return undefined;
+  }
+
+  if (direction === ">") {
+    const childPath = parentTargetPath.children[segment];
+
+    if (childPath == null) {
+      return undefined;
+    }
+
+    return {
+      data: childPath.entity_reference == null ? undefined : { entityReferencePath: childPath },
+      id: `${stringifyPath(parentPath)}->${stringifyPath(nodePath)}`,
+      label: childPath.entity_reference == null ? undefined : childPath.name,
+      source: stringifyPath(parentPath),
+      sourceHandle: "bottom",
+      target: stringifyPath(nodePath),
+      targetHandle: "top",
+    };
+  }
+
+  if (direction !== "<") {
+    return undefined;
+  }
+
+  if (parentTargetPath.references.includes(segment)) {
+    const referencePath = pathbuilder.getPathById(segment);
+
+    return {
+      data: referencePath == null ? undefined : { entityReferencePath: referencePath },
+      id: `${stringifyPath(nodePath)}->${stringifyPath(parentPath)}`,
+      label: referencePath?.name,
+      source: stringifyPath(nodePath),
+      sourceHandle: "bottom",
+      target: stringifyPath(parentPath),
+      targetHandle: "top",
+    };
+  }
+
+  if (nodeTargetPath.id === segment || parentTargetPath.group === segment) {
+    return {
+      id: `${stringifyPath(nodePath)}->${stringifyPath(parentPath)}`,
+      source: stringifyPath(nodePath),
+      sourceHandle: "bottom",
+      target: stringifyPath(parentPath),
+      targetHandle: "top",
+    };
+  }
+
+  return undefined;
+}
+
 export function createGraphFromScenario(
   scenario: Scenario,
   pathbuilder: null | Pathbuilder,
@@ -83,187 +266,65 @@ export function createGraphFromScenario(
     return { edges: [], nodes: [] };
   }
 
-  const rootModelNode = scenario.nodes[0];
+  const visiblePaths = scenario.nodes.map((node) => node.id);
+  const resolvedNodes: Array<ResolvedScenarioNode> = scenario.nodes
+    .map((nodeState) => {
+      const targetPath = resolveTargetPathForNodePath(pathbuilder, nodeState.id);
 
-  if (rootModelNode == null) {
-    return { edges: [], nodes: [] };
-  }
+      if (targetPath == null) {
+        return undefined;
+      }
 
-  const rootPathbuilderNode = pathbuilder.getPathById(rootModelNode.id.at(-1)!);
-
-  if (rootPathbuilderNode == null) {
-    return { edges: [], nodes: [] };
-  }
-
-  const modelNodeByPath = new Map(scenario.nodes.map((node) => [stringifyPath(node.id), node]));
-  const nodes: Array<ScenarioGraphNode> = [];
+      return {
+        nodeState,
+        rowIndex: getRowIndex(nodeState.id),
+        targetPath,
+      };
+    })
+    .filter((node): node is ResolvedScenarioNode => node != null);
+  const resolvedNodeById = new Map(
+    resolvedNodes.map((node) => [stringifyPath(node.nodeState.id), node]),
+  );
+  const nodes = resolvedNodes.map(({ nodeState, rowIndex, targetPath }) => {
+    return createPathNode(
+      nodeState.id,
+      targetPath,
+      isDirectVisibleExtension(visiblePaths, nodeState.id, ">"),
+      onExpandBottom,
+      onSelectNode,
+      onExpandTop,
+      isDirectVisibleExtension(visiblePaths, nodeState.id, "<"),
+      nodeState.selected,
+      rowIndex,
+    );
+  });
   const edges: Array<ScenarioGraphEdge> = [];
 
-  function addNodesAndEdges(
-    graphNode: ScenarioGraphNode,
-    parentNode?: ScenarioGraphNode,
-    incomingEntityReference?: PathbuilderPath,
-  ): void {
-    nodes.push(graphNode);
+  for (const { nodeState, targetPath } of resolvedNodes) {
+    const parentPath = getDirectParentPath(nodeState.id);
 
-    if (parentNode != null) {
-      edges.push({
-        data:
-          incomingEntityReference == null
-            ? undefined
-            : { entityReferencePath: incomingEntityReference },
-        id: `${parentNode.id}->${graphNode.id}`,
-        label: incomingEntityReference?.name,
-        source: parentNode.id,
-        sourceHandle: "bottom",
-        target: graphNode.id,
-        targetHandle: "top",
-      });
+    if (parentPath.length === 0) {
+      continue;
     }
 
-    if (graphNode.data.topExpanded && graphNode.data.targetPath.references.length > 0) {
-      for (const referenceId of graphNode.data.targetPath.references) {
-        const referencePathbuilderNode = pathbuilder.getPathById(referenceId);
+    const parentNode = resolvedNodeById.get(stringifyPath(parentPath));
 
-        if (referencePathbuilderNode == null) {
-          continue;
-        }
-
-        const referenceParentPathbuilderNode =
-          referencePathbuilderNode.group == null
-            ? referencePathbuilderNode
-            : (pathbuilder.getPathById(referencePathbuilderNode.group) ?? referencePathbuilderNode);
-        const referencePath = [...graphNode.data.id_array, "<", referenceId];
-        const referenceModelNode = modelNodeByPath.get(stringifyPath(referencePath));
-        const referenceGraphNode = createPathNode(
-          referencePath,
-          referenceParentPathbuilderNode,
-          isBottomExpanded(referenceModelNode),
-          onExpandBottom,
-          onSelectNode,
-          onExpandTop,
-          isTopExpanded(referenceModelNode),
-          referenceModelNode?.selected ?? "no",
-          graphNode.data.row_index - 1,
-        );
-
-        addNodesAndEdges(referenceGraphNode);
-        edges.push({
-          data: { entityReferencePath: referencePathbuilderNode },
-          id: `${referenceGraphNode.id}->${graphNode.id}`,
-          label: referencePathbuilderNode.name,
-          source: referenceGraphNode.id,
-          sourceHandle: "bottom",
-          target: graphNode.id,
-          targetHandle: "top",
-        });
-      }
-    } else if (
-      graphNode.data.topExpanded &&
-      graphNode.data.id_array.at(-2) === "<" &&
-      graphNode.data.targetPath.group != null
-    ) {
-      const parentPathbuilderNode = pathbuilder.getPathById(graphNode.data.targetPath.group);
-
-      if (parentPathbuilderNode != null) {
-        const parentPath = [...graphNode.data.id_array, "<", parentPathbuilderNode.id];
-        const parentModelNode = modelNodeByPath.get(stringifyPath(parentPath));
-        const parentGraphNode = createPathNode(
-          parentPath,
-          parentPathbuilderNode,
-          isBottomExpanded(parentModelNode),
-          onExpandBottom,
-          onSelectNode,
-          onExpandTop,
-          isTopExpanded(parentModelNode),
-          parentModelNode?.selected ?? "no",
-          graphNode.data.row_index - 1,
-        );
-
-        addNodesAndEdges(parentGraphNode);
-        edges.push({
-          id: `${parentGraphNode.id}->${graphNode.id}`,
-          source: parentGraphNode.id,
-          sourceHandle: "bottom",
-          target: graphNode.id,
-          targetHandle: "top",
-        });
-      }
+    if (parentNode == null) {
+      continue;
     }
 
-    if (!graphNode.data.bottomExpanded) {
-      return;
-    }
+    const edge = createEdgeForNode(
+      nodeState.id,
+      targetPath,
+      parentPath,
+      parentNode.targetPath,
+      pathbuilder,
+    );
 
-    for (const childId of Object.keys(graphNode.data.targetPath.children)) {
-      const childPathbuilderNode = graphNode.data.targetPath.children[childId]!;
-      const childPath = [...graphNode.data.id_array, ">", childId];
-      const childModelNode = modelNodeByPath.get(stringifyPath(childPath));
-
-      if (childPathbuilderNode.entity_reference == null) {
-        const childGraphNode = createPathNode(
-          childPath,
-          childPathbuilderNode,
-          isBottomExpanded(childModelNode),
-          onExpandBottom,
-          onSelectNode,
-          onExpandTop,
-          isTopExpanded(childModelNode),
-          childModelNode?.selected ?? "no",
-          graphNode.data.row_index + 1,
-        );
-        addNodesAndEdges(childGraphNode, graphNode);
-        continue;
-      }
-
-      const referencedPathbuilderNode = pathbuilder.getPathByType(
-        childPathbuilderNode.entity_reference,
-      );
-
-      if (referencedPathbuilderNode == null) {
-        const childGraphNode = createPathNode(
-          childPath,
-          childPathbuilderNode,
-          isBottomExpanded(childModelNode),
-          onExpandBottom,
-          onSelectNode,
-          onExpandTop,
-          isTopExpanded(childModelNode),
-          childModelNode?.selected ?? "no",
-          graphNode.data.row_index + 1,
-        );
-        addNodesAndEdges(childGraphNode, graphNode);
-        continue;
-      }
-
-      const referencedGraphNode = createPathNode(
-        childPath,
-        referencedPathbuilderNode,
-        isBottomExpanded(childModelNode),
-        onExpandBottom,
-        onSelectNode,
-        onExpandTop,
-        isTopExpanded(childModelNode),
-        childModelNode?.selected ?? "no",
-        graphNode.data.row_index + 1,
-      );
-      addNodesAndEdges(referencedGraphNode, graphNode, childPathbuilderNode);
+    if (edge != null) {
+      edges.push(edge);
     }
   }
-
-  const rootModelNodeState = modelNodeByPath.get(stringifyPath(rootModelNode.id));
-  const rootGraphNode = createPathNode(
-    rootModelNode.id,
-    rootPathbuilderNode,
-    isBottomExpanded(rootModelNodeState),
-    onExpandBottom,
-    onSelectNode,
-    onExpandTop,
-    isTopExpanded(rootModelNodeState),
-    rootModelNodeState?.selected ?? "no",
-    0,
-  );
-  addNodesAndEdges(rootGraphNode);
 
   return { edges, nodes };
 }
