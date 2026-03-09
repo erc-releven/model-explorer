@@ -1,9 +1,5 @@
 import type { Scenario } from "../scenario";
-import {
-  createSelectedSubgraphAst,
-  type ModelAstNode,
-  type ModelSubgraphAst,
-} from "./ast";
+import { createSelectedSubgraphAst, type ModelAstNode, type ModelSubgraphAst } from "./ast";
 import type { Pathbuilder } from "./pathbuilder";
 
 type PydanticAstTransformer = (tree: ModelSubgraphAst) => void;
@@ -69,15 +65,13 @@ function createClassNameFromNode(node: ModelAstNode): string {
   return `${toPascalCase(idString)}Model`;
 }
 
-function collectSelectedForest(
-  nodes: Array<ModelAstNode>,
-): Array<SelectedTreeNode> {
+function collectSelectedForest(nodes: Array<ModelAstNode>): Array<SelectedTreeNode> {
   const selectedTree: Array<SelectedTreeNode> = [];
 
   for (const node of nodes) {
     const selectedChildren = collectSelectedForest(node.children);
 
-    if (node.data.selected !== "no") {
+    if (node.data.selected != null) {
       selectedTree.push({ children: selectedChildren, node });
       continue;
     }
@@ -98,10 +92,7 @@ function visitSelectedTree(
   }
 }
 
-function compileAstToPydantic(
-  tree: ModelSubgraphAst,
-  config: PydanticProcessorConfig,
-): string {
+function compileAstToPydantic(tree: ModelSubgraphAst, config: PydanticProcessorConfig): string {
   const selectedForest = collectSelectedForest(tree.children);
   const leafType = config.leafType ?? "str";
   const rootModelName = config.rootModelName ?? "SelectedModel";
@@ -146,9 +137,7 @@ function compileAstToPydantic(
 
       const childClassName = classNameByNodeId.get(child.node.data.id);
       const fieldType =
-        child.children.length > 0 && childClassName != null
-          ? childClassName
-          : leafType;
+        child.children.length > 0 && childClassName != null ? childClassName : leafType;
 
       return `    ${fieldName}: ${fieldType}`;
     });
@@ -171,9 +160,7 @@ function compileAstToPydantic(
 
     const rootClassName = classNameByNodeId.get(rootNode.node.data.id);
     const rootType =
-      rootNode.children.length > 0 && rootClassName != null
-        ? rootClassName
-        : leafType;
+      rootNode.children.length > 0 && rootClassName != null ? rootClassName : leafType;
 
     return `    ${fieldName}: ${rootType}`;
   });
@@ -193,8 +180,7 @@ export function createPydanticProcessor(
   config: PydanticProcessorConfig = {},
 ): PydanticUnifiedProcessor {
   const transforms: Array<PydanticAstTransformer> = [];
-  const compiler: PydanticCompiler = (tree) =>
-    compileAstToPydantic(tree, config);
+  const compiler: PydanticCompiler = (tree) => compileAstToPydantic(tree, config);
 
   return {
     processSync(tree: ModelSubgraphAst): string {

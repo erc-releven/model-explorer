@@ -231,7 +231,7 @@ export function useGraphTree({
       }
 
       function clearCountNodesIfNoSelection(nodes: Scenario["nodes"]): Scenario["nodes"] {
-        if (nodes.some((node) => node.selected === "yes")) {
+        if (nodes.some((node) => node.selected === "value")) {
           return nodes;
         }
 
@@ -242,7 +242,7 @@ export function useGraphTree({
 
           return {
             ...node,
-            selected: "no",
+            selected: undefined,
           };
         });
       }
@@ -262,7 +262,7 @@ export function useGraphTree({
               ...modelState.nodes,
               {
                 ...createDefaultNodeState(idPath),
-                selected: count ? "count" : "yes",
+                selected: count ? "count" : "value",
               },
             ],
           },
@@ -273,7 +273,7 @@ export function useGraphTree({
 
       const clickedNode = modelState.nodes[existingNodeIndex]!;
 
-      if (clickedNode.selected !== "no") {
+      if (clickedNode.selected != null) {
         const nextNodes = clearCountNodesIfNoSelection(
           modelState.nodes.map((node, index) => {
             if (index !== existingNodeIndex) {
@@ -282,7 +282,7 @@ export function useGraphTree({
 
             return {
               ...node,
-              selected: "no",
+              selected: undefined,
             };
           }),
         );
@@ -307,7 +307,7 @@ export function useGraphTree({
 
             return {
               ...node,
-              selected: count ? "count" : "yes",
+              selected: count ? "count" : "value",
             };
           }),
         },
@@ -404,7 +404,7 @@ export function useGraphTree({
     );
 
     const selectedNodeIds = modelState.nodes
-      .filter((node) => node.selected === "yes" || node.selected === "count")
+      .filter((node) => node.selected === "value" || node.selected === "count")
       .map((node) => stringifyPath(node.id));
     const countNodeIds = modelState.nodes
       .filter((node) => node.selected === "count")

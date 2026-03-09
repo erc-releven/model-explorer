@@ -13,7 +13,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   const nodeBorderColor =
     data.selected === "count"
       ? graphNodeBorderColors.count
-      : data.selected === "yes"
+      : data.selected != null
         ? graphNodeBorderColors.selected
         : graphNodeBorderColors.default;
   const topTooltip = hasEntityReferences
@@ -48,9 +48,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         <div className="inline-block w-full">
           <div className="flex items-start justify-between gap-2 text-left">
             <HoverTooltip placement="top" title={data.id_array.join(" ")}>
-              <span className="block text-sm font-semibold">
-                {data.targetPath.name}
-              </span>
+              <span className="block text-sm font-semibold">{data.targetPath.name}</span>
             </HoverTooltip>
             <HoverTooltip
               placement="top"

@@ -14,11 +14,7 @@ import {
 import { type Dispatch, useEffect, useRef, useState } from "react";
 import { Parser as SparqlParser } from "sparqljs";
 
-import type {
-  OrderByState,
-  Scenario,
-  ScenarioAction,
-} from "../../scenario";
+import type { OrderByDirection, Scenario, ScenarioAction } from "../../scenario";
 import { DEFAULT_SPARQL_ENDPOINT } from "../../serializer/sparql-query";
 import { ClearableInput } from "../ui/ClearableInput";
 import { LabeledBorderBox } from "../ui/LabeledBorderBox";
@@ -38,6 +34,10 @@ interface SparqlConfigProps {
 const emptySelectionPlaceholder =
   "Select (click) or count-select (shift-click) some model nodes to generate a query.";
 
+function toOrderByVariableName(variable: string): string {
+  return variable.replace(/^\?/, "");
+}
+
 export function SparqlConfig({
   dispatchModelState,
   generatedPydanticModel,
@@ -50,10 +50,8 @@ export function SparqlConfig({
 }: SparqlConfigProps) {
   const sparql = modelState.sparql;
   const hasCountNode = modelState.nodes.some((node) => node.selected === "count");
-  const hasSelectedNode = modelState.nodes.some((node) => node.selected !== "no");
-  const displayedGeneratedQuery = hasSelectedNode
-    ? generatedQuery
-    : emptySelectionPlaceholder;
+  const hasSelectedNode = modelState.nodes.some((node) => node.selected != null);
+  const displayedGeneratedQuery = hasSelectedNode ? generatedQuery : emptySelectionPlaceholder;
   const displayedGeneratedPydanticModel = hasSelectedNode
     ? generatedPydanticModel
     : emptySelectionPlaceholder;
@@ -161,23 +159,23 @@ export function SparqlConfig({
       sparqlParserRef.current.parse(trimmedQuery);
       setQuerySyntaxError(null);
     } catch (error: unknown) {
-      setQuerySyntaxError(
-        error instanceof Error ? error.message : "Invalid SPARQL syntax.",
-      );
+      setQuerySyntaxError(error instanceof Error ? error.message : "Invalid SPARQL syntax.");
     }
   }, [hasSelectedNode, queryText]);
 
   useEffect(() => {
-    if (sparql.orderBy === "none") {
+    if (sparql.orderBy == null) {
       return;
     }
 
-    if (selectedVariables.includes(sparql.orderBy)) {
+    if (
+      selectedVariables.some((variable) => toOrderByVariableName(variable) === sparql.orderBy[0])
+    ) {
       return;
     }
 
     dispatchModelState({
-      payload: { sparql: { orderBy: "none" } },
+      payload: { sparql: { orderBy: undefined } },
       type: "state/setSparqlConfig",
     });
   }, [dispatchModelState, selectedVariables, sparql.orderBy]);
@@ -192,24 +190,16 @@ export function SparqlConfig({
   }
 
   function onPydanticTextAreaScroll(): void {
-    if (
-      pydanticTextAreaRef.current == null ||
-      pydanticHighlightedCodeRef.current == null
-    ) {
+    if (pydanticTextAreaRef.current == null || pydanticHighlightedCodeRef.current == null) {
       return;
     }
 
-    pydanticHighlightedCodeRef.current.scrollTop =
-      pydanticTextAreaRef.current.scrollTop;
-    pydanticHighlightedCodeRef.current.scrollLeft =
-      pydanticTextAreaRef.current.scrollLeft;
+    pydanticHighlightedCodeRef.current.scrollTop = pydanticTextAreaRef.current.scrollTop;
+    pydanticHighlightedCodeRef.current.scrollLeft = pydanticTextAreaRef.current.scrollLeft;
   }
 
   return (
-    <div
-      aria-label="SPARQL configuration"
-      className="panel flex min-h-panel flex-1 p-4"
-    >
+    <div aria-label="SPARQL configuration" className="panel flex min-h-panel flex-1 p-4">
       <div className="flex w-full flex-col gap-4">
         <h2 className="m-0 text-base">SPARQL Configuration</h2>
 
@@ -287,9 +277,7 @@ export function SparqlConfig({
                         dispatchModelState({
                           payload: {
                             sparql: {
-                              makeAllFieldsOptional: enabled
-                                ? sparql.makeAllFieldsOptional
-                                : false,
+                              makeAllFieldsOptional: enabled ? sparql.makeAllFieldsOptional : false,
                               makeEntityReferencesOptional: enabled,
                             },
                           },
@@ -330,8 +318,7 @@ export function SparqlConfig({
                       dispatchModelState({
                         payload: {
                           sparql: {
-                            omitPathPrefixesUnlessExplicitlySelected:
-                              event.target.checked,
+                            omitPathPrefixesUnlessExplicitlySelected: event.target.checked,
                           },
                         },
                         type: "state/setSparqlConfig",
@@ -387,22 +374,27 @@ export function SparqlConfig({
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <FormControl fullWidth size="small">
                   <InputLabel id="order-by-label">order by</InputLabel>
-                  <Select<OrderByState>
+                  <Select<string>
                     label="order by"
                     labelId="order-by-label"
-                    value={sparql.orderBy}
+                    value={sparql.orderBy?.[0] ?? ""}
                     onChange={(event) => {
                       dispatchModelState({
                         payload: {
-                          sparql: { orderBy: event.target.value as OrderByState },
+                          sparql: {
+                            orderBy:
+                              event.target.value === ""
+                                ? undefined
+                                : [event.target.value, sparql.orderBy?.[1] ?? "ASC"],
+                          },
                         },
                         type: "state/setSparqlConfig",
                       });
                     }}
                   >
-                    <MenuItem value="none">none</MenuItem>
+                    <MenuItem value="">none</MenuItem>
                     {selectedVariables.map((variable) => (
-                      <MenuItem key={variable} value={variable}>
+                      <MenuItem key={variable} value={toOrderByVariableName(variable)}>
                         {variable}
                       </MenuItem>
                     ))}
@@ -411,14 +403,22 @@ export function SparqlConfig({
 
                 <FormControl fullWidth size="small">
                   <InputLabel id="direction-label">direction</InputLabel>
-                  <Select<"ASC" | "DESC">
-                    disabled={sparql.orderBy === "none"}
+                  <Select<OrderByDirection>
+                    disabled={sparql.orderBy == null}
                     label="direction"
                     labelId="direction-label"
-                    value={sparql.direction}
+                    value={sparql.orderBy?.[1] ?? "ASC"}
                     onChange={(event) => {
+                      if (sparql.orderBy == null) {
+                        return;
+                      }
+
                       dispatchModelState({
-                        payload: { sparql: { direction: event.target.value } },
+                        payload: {
+                          sparql: {
+                            orderBy: [sparql.orderBy[0], event.target.value as OrderByDirection],
+                          },
+                        },
                         type: "state/setSparqlConfig",
                       });
                     }}

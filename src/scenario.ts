@@ -1,16 +1,16 @@
 import { useReducer } from "react";
 
-export type OrderByState = "none" | `?${string}`;
-export type SelectedState = "count" | "no" | "yes";
+export type OrderByDirection = "ASC" | "DESC";
+export type OrderByState = [string, OrderByDirection];
+export type SelectedState = "count" | "value";
 
 export interface NodeState {
   id: Array<string>;
-  selected: SelectedState;
+  selected?: SelectedState;
 }
 
 export interface SparqlConfigState {
   countDistinct: boolean;
-  direction: "ASC" | "DESC";
   disregardTypesOfNonRootNodes: boolean;
   includeZeroCountResults: boolean;
   limit?: number;
@@ -18,7 +18,7 @@ export interface SparqlConfigState {
   makeEntityReferencesOptional: boolean;
   namedGraph: string;
   omitPathPrefixesUnlessExplicitlySelected: boolean;
-  orderBy: OrderByState;
+  orderBy?: OrderByState;
 }
 
 export interface Scenario {
@@ -29,7 +29,6 @@ export interface Scenario {
 
 export const defaultSparqlConfig: SparqlConfigState = {
   countDistinct: false,
-  direction: "ASC",
   disregardTypesOfNonRootNodes: false,
   includeZeroCountResults: true,
   limit: undefined,
@@ -37,7 +36,7 @@ export const defaultSparqlConfig: SparqlConfigState = {
   makeEntityReferencesOptional: false,
   namedGraph: "",
   omitPathPrefixesUnlessExplicitlySelected: true,
-  orderBy: "none",
+  orderBy: undefined,
 };
 
 export const defaultScenario: Scenario = {
@@ -101,7 +100,7 @@ export function useScenario() {
 export function createDefaultNodeState(id: Array<string>): NodeState {
   return {
     id,
-    selected: "no",
+    selected: undefined,
   };
 }
 
@@ -111,13 +110,16 @@ export function normalizeNodeState(
   return {
     id: nodeState.id,
     selected:
-      nodeState.selected === "count" || nodeState.selected === "yes" ? nodeState.selected : "no",
+      nodeState.selected === "count" || nodeState.selected === "value"
+        ? nodeState.selected
+        : undefined,
   };
 }
 
 export function normalizeSparqlConfig(
   sparqlConfig?: Partial<SparqlConfigState>,
 ): SparqlConfigState {
+  const nextOrderBy = sparqlConfig?.orderBy;
   const nextLimit =
     typeof sparqlConfig?.limit === "number" && Number.isInteger(sparqlConfig.limit)
       ? Math.max(0, sparqlConfig.limit)
@@ -125,7 +127,6 @@ export function normalizeSparqlConfig(
 
   return {
     countDistinct: sparqlConfig?.countDistinct ?? defaultSparqlConfig.countDistinct,
-    direction: sparqlConfig?.direction === "DESC" ? "DESC" : "ASC",
     disregardTypesOfNonRootNodes:
       sparqlConfig?.disregardTypesOfNonRootNodes ??
       defaultSparqlConfig.disregardTypesOfNonRootNodes,
@@ -142,8 +143,6 @@ export function normalizeSparqlConfig(
       sparqlConfig?.omitPathPrefixesUnlessExplicitlySelected ??
       defaultSparqlConfig.omitPathPrefixesUnlessExplicitlySelected,
     orderBy:
-      sparqlConfig?.orderBy === "none" || sparqlConfig?.orderBy?.startsWith("?")
-        ? sparqlConfig.orderBy
-        : "none",
+      Array.isArray(nextOrderBy) && nextOrderBy[0].trim().length > 0 ? nextOrderBy : undefined,
   };
 }

@@ -138,7 +138,7 @@ export function createSelectedSubgraphAst(
   }
   const graphNodeById = new Map(graphNodes.map((node) => [node.id, node]));
   const selectedNodeIds = graphNodes
-    .filter((node) => node.data.selected !== "no")
+    .filter((node) => node.data.selected != null)
     .map((node) => node.id);
   const selectedNodeIdSet = new Set(selectedNodeIds);
 

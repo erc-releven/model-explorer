@@ -12,7 +12,7 @@ export interface PathNodeData extends Record<string, unknown> {
   onExpandTop: (idPath: Array<string>) => void;
   onSelectNode: (idPath: Array<string>, count: boolean) => void;
   row_index: number;
-  selected: SelectedState;
+  selected?: SelectedState;
   targetPath: PathbuilderPath;
   topExpanded: boolean;
 }
@@ -166,7 +166,7 @@ function createPathNode(
   onSelectNode: (idPath: Array<string>, count: boolean) => void,
   onExpandTop: (idPath: Array<string>) => void,
   topExpanded: boolean,
-  selected: SelectedState,
+  selected: SelectedState | undefined,
   rowIndex: number,
 ): ScenarioGraphNode {
   return {

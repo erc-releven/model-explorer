@@ -3,17 +3,18 @@ import {
   defaultSparqlConfig,
   type NodeState,
   normalizeSparqlConfig,
+  type OrderByDirection,
   type OrderByState,
   type Scenario,
   type SelectedState,
 } from "../scenario.ts";
 
 function parseSelectedState(value: unknown): SelectedState {
-  if (value === "count" || value === "yes") {
+  if (value === "count" || value === "value") {
     return value;
   }
 
-  return "no";
+  return undefined;
 }
 
 function parseNodeStateList(values: Array<string>): Array<NodeState> {
@@ -61,13 +62,14 @@ function parseBooleanParam(value: null | string): boolean | undefined {
   return undefined;
 }
 
-function parseOrderByState(value: null | string): OrderByState | undefined {
-  if (value === "none") {
-    return value;
-  }
+function parseOrderByState(
+  value: null | string,
+  direction: null | string,
+): OrderByState | undefined {
+  const normalizedValue = value?.trim();
 
-  if (value?.startsWith("?")) {
-    return value as `?${string}`;
+  if (normalizedValue != null && normalizedValue.length > 0) {
+    return [normalizedValue, (direction === "DESC" ? "DESC" : "ASC") as OrderByDirection];
   }
 
   return undefined;
@@ -85,14 +87,13 @@ export function parseModelStateFromSearch(search: string): Scenario {
       params.get("omitPathPrefixesUnlessExplicitlySelected"),
     ),
     countDistinct: parseBooleanParam(params.get("countDistinct")),
-    direction: params.get("direction") === "DESC" ? "DESC" : "ASC",
     disregardTypesOfNonRootNodes: parseBooleanParam(params.get("disregardTypesOfNonRootNodes")),
     includeZeroCountResults: parseBooleanParam(params.get("includeZeroCountResults")),
     limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
     makeAllFieldsOptional: parseBooleanParam(params.get("makeAllFieldsOptional")),
     makeEntityReferencesOptional: parseBooleanParam(params.get("makeEntityReferencesOptional")),
     namedGraph: params.get("namedGraph") ?? undefined,
-    orderBy: parseOrderByState(params.get("orderBy")),
+    orderBy: parseOrderByState(params.get("orderBy"), params.get("direction")),
   });
 
   return {
@@ -156,11 +157,12 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
   }
 
   if (modelState.sparql.orderBy !== defaultSparqlConfig.orderBy) {
-    params.set("orderBy", modelState.sparql.orderBy);
-  }
-
-  if (modelState.sparql.direction !== defaultSparqlConfig.direction) {
-    params.set("direction", modelState.sparql.direction);
+    if (modelState.sparql.orderBy != null) {
+      params.set("orderBy", modelState.sparql.orderBy[0]);
+      if (modelState.sparql.orderBy[1] !== "ASC") {
+        params.set("direction", modelState.sparql.orderBy[1]);
+      }
+    }
   }
 
   if (modelState.sparql.limit !== defaultSparqlConfig.limit) {
@@ -171,7 +173,7 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
     for (const node of modelState.nodes) {
       const serializableNode: Record<string, unknown> = { id: node.id };
 
-      if (node.selected !== "no") {
+      if (node.selected != null) {
         serializableNode.selected = node.selected;
       }
 

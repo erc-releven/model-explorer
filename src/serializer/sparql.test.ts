@@ -185,7 +185,7 @@ function createScenarioFromSelections(
     upsertNodeState(statesById, resolvedPath, (state) => {
       return {
         ...state,
-        selected: "yes",
+        selected: "value",
       };
     });
   }

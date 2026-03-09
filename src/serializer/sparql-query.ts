@@ -154,7 +154,7 @@ function buildTraversalNodesForPath(nodePath: Array<string>): Scenario["nodes"] 
   for (let length = 1; length < nodePath.length; length += 2) {
     nodes.push({
       id: nodePath.slice(0, length),
-      selected: "no",
+      selected: undefined,
     });
   }
 

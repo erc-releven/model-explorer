@@ -1,9 +1,5 @@
 import type { Scenario } from "../scenario";
-import {
-  createSelectedSubgraphAst,
-  type ModelAstNode,
-  type ModelSubgraphAst,
-} from "./ast";
+import { createSelectedSubgraphAst, type ModelAstNode, type ModelSubgraphAst } from "./ast";
 import type { Pathbuilder } from "./pathbuilder";
 import { TYPE_PREFIXES } from "./prefixes";
 
@@ -90,9 +86,7 @@ function createShortestUniqueVariableBaseNames(
           return part;
         });
         const otherStartIndex = Math.max(0, otherParts.length - depth);
-        const otherCandidate = sanitizeVariableName(
-          otherParts.slice(otherStartIndex).join("_"),
-        );
+        const otherCandidate = sanitizeVariableName(otherParts.slice(otherStartIndex).join("_"));
 
         return otherCandidate === candidate;
       });
@@ -104,10 +98,7 @@ function createShortestUniqueVariableBaseNames(
       depth += 1;
     }
 
-    candidatesByIndex.set(
-      index,
-      candidate.length > 0 ? candidate : `v_${String(index)}`,
-    );
+    candidatesByIndex.set(index, candidate.length > 0 ? candidate : `v_${String(index)}`);
   }
 
   return candidatesByIndex;
@@ -172,10 +163,7 @@ function formatIriTerm(
   return isInversePredicate ? `^${iri}` : iri;
 }
 
-function getCommonPrefixLength(
-  left: Array<string>,
-  right: Array<string>,
-): number {
+function getCommonPrefixLength(left: Array<string>, right: Array<string>): number {
   const minLength = Math.min(left.length, right.length);
   let index = 0;
 
@@ -225,25 +213,19 @@ function createNodeVariableMaps(tree: ModelSubgraphAst): {
   for (const [index, entry] of allNodes.entries()) {
     const { depth, node } = entry;
     const variableBaseName =
-      shortestBaseNames.get(index) ??
-      createVariableBaseNameFromIdArray(node.data.id_array);
+      shortestBaseNames.get(index) ?? createVariableBaseNameFromIdArray(node.data.id_array);
     const seenCount = seenCountsByName.get(variableBaseName) ?? 0;
     const variableLabel =
-      seenCount === 0
-        ? `?${variableBaseName}`
-        : `?${variableBaseName}_${String(seenCount)}`;
+      seenCount === 0 ? `?${variableBaseName}` : `?${variableBaseName}_${String(seenCount)}`;
     const nodeId = stringifyPath(node.data.id_array);
 
     seenCountsByName.set(variableBaseName, seenCount + 1);
     nodeVariableById.set(nodeId, variableLabel);
 
-    if (node.data.selected !== "no") {
+    if (node.data.selected != null) {
       selectedVariables.push({
         depth,
-        variable:
-          node.data.selected === "count"
-            ? `${variableLabel}_count`
-            : variableLabel,
+        variable: node.data.selected === "count" ? `${variableLabel}_count` : variableLabel,
       });
     }
   }
@@ -261,18 +243,10 @@ function compileAstToSparql(
     nodeId: string;
   }
 
-  const shouldDisregardNonRootNodeTypes =
-    config.sparql.disregardTypesOfNonRootNodes;
+  const shouldDisregardNonRootNodeTypes = config.sparql.disregardTypesOfNonRootNodes;
   const shouldCountDistinct = config.sparql.countDistinct;
   const shouldIncludeZeroCountResults = config.sparql.includeZeroCountResults;
-  const { allNodes, nodeVariableById } =
-    createNodeVariableMaps(tree);
-  const depthByNodeId = new Map(
-    allNodes.map(({ depth, node }) => [
-      stringifyPath(node.data.id_array),
-      depth,
-    ]),
-  );
+  const { allNodes, nodeVariableById } = createNodeVariableMaps(tree);
   const indentLevelByNodeId = new Map(
     allNodes.map(({ node }) => [
       stringifyPath(node.data.id_array),
@@ -297,9 +271,7 @@ function compileAstToSparql(
   const nodeVisitOrder = new Map<string, number>();
   let nextNodeVisitIndex = 0;
   const usedPrefixes = new Set<string>();
-  const nodeById = new Map(
-    allNodes.map(({ node }) => [stringifyPath(node.data.id_array), node]),
-  );
+  const nodeById = new Map(allNodes.map(({ node }) => [stringifyPath(node.data.id_array), node]));
   const parentByNodeId = new Map<string, string>();
 
   walkNodesWithParent(tree.children, undefined, (node, parent) => {
@@ -307,16 +279,10 @@ function compileAstToSparql(
       return;
     }
 
-    parentByNodeId.set(
-      stringifyPath(node.data.id_array),
-      stringifyPath(parent.data.id_array),
-    );
+    parentByNodeId.set(stringifyPath(node.data.id_array), stringifyPath(parent.data.id_array));
   });
 
-  function isUpwardChildNode(
-    node: ModelAstNode,
-    parent: ModelAstNode | undefined,
-  ): boolean {
+  function isUpwardChildNode(node: ModelAstNode, parent: ModelAstNode | undefined): boolean {
     if (parent == null) {
       return false;
     }
@@ -341,8 +307,7 @@ function compileAstToSparql(
     node: ModelAstNode,
     parent: ModelAstNode | undefined,
   ): Array<string> {
-    const parentEdgeEntityReferencePathArray =
-      node.data.parentEdgeEntityReferencePath?.path_array;
+    const parentEdgeEntityReferencePathArray = node.data.parentEdgeEntityReferencePath?.path_array;
 
     if (parent != null && parentEdgeEntityReferencePathArray != null) {
       return parentEdgeEntityReferencePathArray;
@@ -378,27 +343,18 @@ function compileAstToSparql(
     }
 
     const isUpwardEdge = isUpwardChildNode(node, parent);
-    const startIndex = parent == null
-      ? 0
-      : Math.min(
-          Math.max(0, nodeOwnStatementStart),
-          nodePathArray.length,
-        );
+    const startIndex =
+      parent == null ? 0 : Math.min(Math.max(0, nodeOwnStatementStart), nodePathArray.length);
     const predicateIndexes: Array<number> = [];
 
-    for (
-      let pathIndex = startIndex;
-      pathIndex < nodePathArray.length;
-      pathIndex += 1
-    ) {
+    for (let pathIndex = startIndex; pathIndex < nodePathArray.length; pathIndex += 1) {
       if (pathIndex % 2 === 1) {
         predicateIndexes.push(pathIndex);
       }
     }
 
     const parentVariable = parentContext?.variable ?? nodeVariable;
-    const parentNodeTerminalClass =
-      parent?.data.targetPath.path_array.at(-1);
+    const parentNodeTerminalClass = parent?.data.targetPath.path_array.at(-1);
     const hasSharedTerminalTypeWithParent =
       isUpwardEdge &&
       nodePathArray.length > 0 &&
@@ -408,34 +364,24 @@ function compileAstToSparql(
       ? (upwardTerminalVariable ?? parentVariable)
       : nodeVariable;
     const upwardInitialVariable = upwardLinkVariable ?? nodeVariable;
-    let currentVariable = isUpwardEdge
-      ? upwardInitialVariable
-      : parentVariable;
+    let currentVariable = isUpwardEdge ? upwardInitialVariable : parentVariable;
     let predicateCursor = 0;
     let emittedStatements = 0;
 
-    for (
-      let pathIndex = startIndex;
-      pathIndex < nodePathArray.length;
-      pathIndex += 1
-    ) {
+    for (let pathIndex = startIndex; pathIndex < nodePathArray.length; pathIndex += 1) {
       const pathElement = nodePathArray[pathIndex]!;
       const indent = "  ".repeat(nodeDepth + 1);
       const pathTerm = formatIriTerm(pathElement, prefixes, usedPrefixes);
 
       if (pathIndex % 2 === 0) {
-        if (
-          hasSharedTerminalTypeWithParent &&
-          pathIndex === nodePathArray.length - 1
-        ) {
+        if (hasSharedTerminalTypeWithParent && pathIndex === nodePathArray.length - 1) {
           continue;
         }
 
         const typeSubjectVariable =
           pathIndex === nodePathArray.length - 1 ? nodeVariable : currentVariable;
         const typeStatement = `${typeSubjectVariable} a ${pathTerm} .`;
-        const shouldCommentTypeStatement =
-          shouldDisregardNonRootNodeTypes && pathIndex > 0;
+        const shouldCommentTypeStatement = shouldDisregardNonRootNodeTypes && pathIndex > 0;
 
         whereStatements.push({
           line: shouldCommentTypeStatement
@@ -447,8 +393,7 @@ function compileAstToSparql(
         continue;
       }
 
-      const isLastPredicate =
-        predicateIndexes[predicateIndexes.length - 1] === pathIndex;
+      const isLastPredicate = predicateIndexes[predicateIndexes.length - 1] === pathIndex;
       const nextVariable = isLastPredicate
         ? terminalVariable
         : `${nodeVariable}_p${String(predicateCursor)}`;
@@ -496,31 +441,20 @@ function compileAstToSparql(
             pathArray: nodePathArray,
             variable: nodeVariable,
           };
-    const upwardChildren = node.children.filter((child) =>
-      isUpwardChildNode(child, node),
-    );
-    const downwardChildren = node.children.filter(
-      (child) => !isUpwardChildNode(child, node),
-    );
+    const upwardChildren = node.children.filter((child) => isUpwardChildNode(child, node));
+    const downwardChildren = node.children.filter((child) => !isUpwardChildNode(child, node));
+    let nextParentContext = parentContext;
 
     let upwardLinkVariable: undefined | string;
     for (const upwardChild of upwardChildren) {
       const upwardChildPathArray = getEffectiveNodePathArray(upwardChild, node);
-      const upwardParentContext =
-        nodeVariable == null ? undefined : { variable: nodeVariable };
-      const upwardVariable = emitNodeWithOrderedEdges(
-        upwardChild,
-        node,
-        upwardParentContext,
-      );
+      const upwardParentContext = nodeVariable == null ? undefined : { variable: nodeVariable };
+      const upwardVariable = emitNodeWithOrderedEdges(upwardChild, node, upwardParentContext);
 
-      if (
-        upwardVariable != null &&
-        upwardChild.data.parentEdgeEntityReferencePath == null
-      ) {
+      if (upwardVariable != null && upwardChild.data.parentEdgeEntityReferencePath == null) {
         upwardLinkVariable = upwardVariable;
         if (node.data.parentEdgeEntityReferencePath == null) {
-          parentContext = {
+          nextParentContext = {
             pathArray: upwardChildPathArray,
             variable: upwardVariable,
           };
@@ -533,7 +467,7 @@ function compileAstToSparql(
       parent,
       nodePathArray,
       nodeOwnStatementStart,
-      parentContext,
+      nextParentContext,
       upwardLinkVariable,
       incomingParentVariable,
     );
@@ -554,14 +488,11 @@ function compileAstToSparql(
   for (const [index, statement] of whereStatements.entries()) {
     if (!firstWhereIndexByNodeId.has(statement.nodeId)) {
       firstWhereIndexByNodeId.set(statement.nodeId, index);
-      firstWhereIndentByNodeId.set(
-        statement.nodeId,
-        (statement.line.match(/^\s*/) ?? [""])[0] ?? "",
-      );
+      firstWhereIndentByNodeId.set(statement.nodeId, /^\s*/.exec(statement.line)?.[0] ?? "");
     }
   }
   const selectedNodeIdsInWhereOrder = allNodes
-    .filter(({ node }) => node.data.selected !== "no")
+    .filter(({ node }) => node.data.selected != null)
     .map(({ node }) => stringifyPath(node.data.id_array))
     .sort((leftNodeId, rightNodeId) => {
       const leftIndex = firstWhereIndexByNodeId.get(leftNodeId) ?? Number.MAX_SAFE_INTEGER;
@@ -587,8 +518,7 @@ function compileAstToSparql(
     const whereIndent = firstWhereIndentByNodeId.get(nodeId);
 
     return {
-      variable:
-        node?.data.selected === "count" ? `${variable}_count` : variable,
+      variable: node?.data.selected === "count" ? `${variable}_count` : variable,
       indentDepth,
       indent: whereIndent ?? "  ".repeat(indentDepth + 1),
     };
@@ -608,7 +538,7 @@ function compileAstToSparql(
     while (cursor != null) {
       const node = nodeById.get(cursor);
 
-      if (node?.data.selected === "yes") {
+      if (node?.data.selected === "value") {
         return cursor;
       }
 
@@ -665,20 +595,13 @@ function compileAstToSparql(
     .map((countNodeId) => {
       const explicitAnchorNodeId = getExplicitAnchorNodeId(countNodeId);
       const implicitRootNodeId =
-        explicitAnchorNodeId == null
-          ? getImplicitRootNodeIdForCount(countNodeId)
-          : undefined;
-      const anchorNodeId =
-        explicitAnchorNodeId ?? implicitRootNodeId ?? countNodeId;
-      const anchorVariable = explicitAnchorNodeId == null
-        ? undefined
-        : nodeVariableById.get(anchorNodeId);
+        explicitAnchorNodeId == null ? getImplicitRootNodeIdForCount(countNodeId) : undefined;
+      const anchorNodeId = explicitAnchorNodeId ?? implicitRootNodeId ?? countNodeId;
+      const anchorVariable =
+        explicitAnchorNodeId == null ? undefined : nodeVariableById.get(anchorNodeId);
       const countVariable = nodeVariableById.get(countNodeId);
 
-      if (
-        countVariable == null ||
-        (explicitAnchorNodeId != null && anchorVariable == null)
-      ) {
+      if (countVariable == null || (explicitAnchorNodeId != null && anchorVariable == null)) {
         return null;
       }
 
@@ -769,18 +692,17 @@ function compileAstToSparql(
         const originalLines = wrapper.statementIndexes.map((index) => {
           return whereStatements[index]!.line;
         });
-        const indent = (originalLines[0]!.match(/^\s*/) ?? [""])[0];
+        const indent = /^\s*/.exec(originalLines[0]!)?.[0] ?? "";
+        const anchorVariable = wrapper.anchorVariable;
 
         whereLines.push(
           wrapper.hasAnchor
-            ? `${indent}${shouldIncludeZeroCountResults ? "OPTIONAL " : ""}{ SELECT ${wrapper.anchorVariable} (COUNT(${shouldCountDistinct ? "DISTINCT " : ""}${wrapper.countVariable}) AS ${wrapper.countVariable}_count) WHERE {`
+            ? `${indent}${shouldIncludeZeroCountResults ? "OPTIONAL " : ""}{ SELECT ${anchorVariable ?? ""} (COUNT(${shouldCountDistinct ? "DISTINCT " : ""}${wrapper.countVariable}) AS ${wrapper.countVariable}_count) WHERE {`
             : `${indent}${shouldIncludeZeroCountResults ? "OPTIONAL " : ""}{ SELECT (COUNT(${shouldCountDistinct ? "DISTINCT " : ""}${wrapper.countVariable}) AS ${wrapper.countVariable}_count) WHERE {`,
         );
         whereLines.push(...originalLines);
         whereLines.push(
-          wrapper.hasAnchor
-            ? `${indent}} GROUP BY ${wrapper.anchorVariable} }`
-            : `${indent}} }`,
+          wrapper.hasAnchor ? `${indent}} GROUP BY ${anchorVariable ?? ""} }` : `${indent}} }`,
         );
       }
     }
@@ -793,30 +715,25 @@ function compileAstToSparql(
   }
 
   const whereClause =
-    whereLines.length === 0
-      ? "WHERE { }"
-      : `WHERE {\n${whereLines.join("\n")}\n}`;
+    whereLines.length === 0 ? "WHERE { }" : `WHERE {\n${whereLines.join("\n")}\n}`;
   const prefixStatements = prefixes
     .filter((prefix) => usedPrefixes.has(prefix.prefix))
     .map((prefix) => `PREFIX ${prefix.prefix}: <${prefix.iri}>`);
   const prefixBlock = prefixStatements.join("\n");
   const normalizedNamedGraph = config.sparql.namedGraph.trim();
   const fromClause =
-    normalizedNamedGraph.length > 0
-      ? `\nFROM <${escapeIriForSparql(normalizedNamedGraph)}>`
-      : "";
-  const orderByVariable = config.sparql.orderBy.trim();
+    normalizedNamedGraph.length > 0 ? `\nFROM <${escapeIriForSparql(normalizedNamedGraph)}>` : "";
+  const orderByVariable = config.sparql.orderBy?.[0]?.trim() ?? "";
+  const orderByDirection = config.sparql.orderBy?.[1] ?? "ASC";
   const orderByClause =
-    orderByVariable === "" || orderByVariable === "none"
+    orderByVariable === ""
       ? ""
-      : `\nORDER BY ${config.sparql.direction === "DESC" ? "DESC" : "ASC"}(${orderByVariable})`;
+      : `\nORDER BY ${orderByDirection === "DESC" ? "DESC" : "ASC"}(?${orderByVariable})`;
   const limitValue =
-    typeof config.sparql.limit === "number" &&
-    Number.isInteger(config.sparql.limit)
+    typeof config.sparql.limit === "number" && Number.isInteger(config.sparql.limit)
       ? config.sparql.limit
       : undefined;
-  const limitClause =
-    limitValue == null ? "" : `\nLIMIT ${String(Math.max(0, limitValue))}`;
+  const limitClause = limitValue == null ? "" : `\nLIMIT ${String(Math.max(0, limitValue))}`;
 
   return `${prefixBlock.length > 0 ? `${prefixBlock}\n\n` : ""}${selectClause}${fromClause}\n${whereClause}${orderByClause}${limitClause}`;
 }
@@ -826,8 +743,7 @@ export function createSparqlProcessor(
   config: SparqlProcessorConfig,
 ): SparqlUnifiedProcessor {
   const transforms: Array<SparqlAstTransformer> = [];
-  const compiler: SparqlCompiler = (tree) =>
-    compileAstToSparql(tree, prefixes, config);
+  const compiler: SparqlCompiler = (tree) => compileAstToSparql(tree, prefixes, config);
 
   return {
     processSync(tree: ModelSubgraphAst): string {
