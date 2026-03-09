@@ -103,7 +103,6 @@ async function processCountQueue(): Promise<void> {
   }
 
   isProcessingCountQueue = true;
-  isCountQueueProcessingScheduled = false;
 
   try {
     while (countQueueEntries.length > 0) {
@@ -137,12 +136,15 @@ function enqueueCountRequest<T>(priority: number, task: () => Promise<T>): Promi
     });
     nextCountQueueSequence += 1;
 
-    if (!isCountQueueProcessingScheduled) {
-      isCountQueueProcessingScheduled = true;
-      queueMicrotask(() => {
-        void processCountQueue();
-      });
+    if (isProcessingCountQueue || isCountQueueProcessingScheduled) {
+      return;
     }
+
+    isCountQueueProcessingScheduled = true;
+    queueMicrotask(() => {
+      isCountQueueProcessingScheduled = false;
+      void processCountQueue();
+    });
   });
 }
 

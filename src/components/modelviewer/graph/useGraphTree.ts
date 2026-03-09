@@ -455,9 +455,7 @@ export function useGraphTree({
       setCountByNodeId({});
     }
 
-    const visibleNodeIds = new Set(
-      graphWithoutCounts.nodes.map((node) => stringifyPath(node.data.id_array)),
-    );
+    const visibleNodeIds = new Set(modelState.nodes.map((node) => stringifyPath(node.id)));
 
     setCountByNodeId((previousState) => {
       const nextState = Object.fromEntries(
@@ -469,19 +467,27 @@ export function useGraphTree({
         : nextState;
     });
 
-    if (graphWithoutCounts.nodes.length === 0) {
+    if (modelState.nodes.length === 0) {
+      return;
+    }
+
+    const nodesNeedingCounts = modelState.nodes.filter((node) => {
+      return countByNodeId[stringifyPath(node.id)] == null;
+    });
+
+    if (nodesNeedingCounts.length === 0) {
       return;
     }
 
     let isCancelled = false;
 
     void Promise.all(
-      graphWithoutCounts.nodes.map(async (node) => {
-        const nodeId = stringifyPath(node.data.id_array);
+      nodesNeedingCounts.map(async (node) => {
+        const nodeId = stringifyPath(node.id);
         let counts: { distinctCount: number; totalCount: number };
 
         try {
-          counts = await fetchCountForNodePath(pathbuilder, node.data.id_array, {
+          counts = await fetchCountForNodePath(pathbuilder, node.id, {
             sparql: modelState.sparql,
           });
         } catch {
@@ -514,7 +520,7 @@ export function useGraphTree({
     return () => {
       isCancelled = true;
     };
-  }, [graphWithoutCounts.nodes, modelState.sparql, pathbuilder]);
+  }, [countByNodeId, modelState.nodes, modelState.sparql, pathbuilder]);
 
   const graph = useMemo(() => {
     return {
