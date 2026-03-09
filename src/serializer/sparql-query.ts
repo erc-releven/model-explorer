@@ -129,9 +129,11 @@ function enqueueCountRequest<T>(priority: number, task: () => Promise<T>): Promi
     countQueueEntries.push({
       priority,
       reject,
-      resolve,
+      resolve: (value: unknown) => {
+        resolve(value as T);
+      },
       sequence: nextCountQueueSequence,
-      task,
+      task: async () => await task(),
     });
     nextCountQueueSequence += 1;
 

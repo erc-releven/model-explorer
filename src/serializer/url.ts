@@ -9,7 +9,7 @@ import {
   type SelectedState,
 } from "../scenario.ts";
 
-function parseSelectedState(value: unknown): SelectedState {
+function parseSelectedState(value: unknown): SelectedState | undefined {
   if (value === "count" || value === "value") {
     return value;
   }

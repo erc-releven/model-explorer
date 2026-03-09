@@ -164,13 +164,13 @@ export function SparqlConfig({
   }, [hasSelectedNode, queryText]);
 
   useEffect(() => {
-    if (sparql.orderBy == null) {
+    const orderBy = sparql.orderBy;
+
+    if (orderBy == null) {
       return;
     }
 
-    if (
-      selectedVariables.some((variable) => toOrderByVariableName(variable) === sparql.orderBy[0])
-    ) {
+    if (selectedVariables.some((variable) => toOrderByVariableName(variable) === orderBy[0])) {
       return;
     }
 
