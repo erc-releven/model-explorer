@@ -51,10 +51,8 @@ export function SparqlConfig({
   const sparql = modelState.sparql;
   const hasCountNode = modelState.nodes.some((node) => node.selected === "count");
   const hasSelectedNode = modelState.nodes.some((node) => node.selected != null);
-  const displayedGeneratedQuery = hasSelectedNode ? generatedQuery : emptySelectionPlaceholder;
-  const displayedGeneratedPydanticModel = hasSelectedNode
-    ? generatedPydanticModel
-    : emptySelectionPlaceholder;
+  const displayedGeneratedQuery = hasSelectedNode ? generatedQuery : "";
+  const displayedGeneratedPydanticModel = hasSelectedNode ? generatedPydanticModel : "";
   const textAreaRef = useRef<null | HTMLTextAreaElement>(null);
   const highlightedCodeRef = useRef<null | HTMLDivElement>(null);
   const pydanticTextAreaRef = useRef<null | HTMLTextAreaElement>(null);
@@ -76,6 +74,14 @@ export function SparqlConfig({
     let active = true;
 
     async function highlight(): Promise<void> {
+      if (queryText.trim().length === 0) {
+        if (active) {
+          setHighlightedHtml("");
+        }
+
+        return;
+      }
+
       let html = "";
 
       try {
@@ -102,6 +108,14 @@ export function SparqlConfig({
     let active = true;
 
     async function highlightPydantic(): Promise<void> {
+      if (pydanticText.trim().length === 0) {
+        if (active) {
+          setHighlightedPydanticHtml("");
+        }
+
+        return;
+      }
+
       let html = "";
 
       try {
@@ -361,6 +375,7 @@ export function SparqlConfig({
                 }}
                 placeholder="https://example.org/graph"
                 size="small"
+                spellCheck={false}
                 value={sparql.namedGraph}
                 onChange={(event) => {
                   dispatchModelState({
@@ -439,6 +454,7 @@ export function SparqlConfig({
                     });
                   }}
                   size="small"
+                  spellCheck={false}
                   slotProps={{
                     htmlInput: {
                       min: 0,
@@ -516,8 +532,10 @@ export function SparqlConfig({
               />
               <textarea
                 ref={textAreaRef}
-                className="absolute inset-0 h-full w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words bg-transparent p-3 font-mono text-sm text-transparent caret-slate-900 outline-none"
+                className="absolute inset-0 h-full w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words bg-transparent p-3 font-mono text-sm text-transparent caret-slate-900 outline-none placeholder:text-muted"
                 defaultValue={displayedGeneratedQuery}
+                placeholder={emptySelectionPlaceholder}
+                spellCheck={false}
                 wrap="soft"
                 onInput={(event) => {
                   setQueryText(event.currentTarget.value);
@@ -534,8 +552,10 @@ export function SparqlConfig({
               />
               <textarea
                 ref={pydanticTextAreaRef}
-                className="absolute inset-0 h-full w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words bg-transparent p-3 font-mono text-sm text-transparent caret-slate-900 outline-none"
+                className="absolute inset-0 h-full w-full resize-none overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-words bg-transparent p-3 font-mono text-sm text-transparent caret-slate-900 outline-none placeholder:text-muted"
                 defaultValue={displayedGeneratedPydanticModel}
+                placeholder={emptySelectionPlaceholder}
+                spellCheck={false}
                 wrap="soft"
                 onInput={(event) => {
                   setPydanticText(event.currentTarget.value);
@@ -554,6 +574,7 @@ export function SparqlConfig({
               className="min-w-[22rem] flex-1"
               label="endpoint"
               size="small"
+              spellCheck={false}
               value={endpoint}
               onChange={(event) => {
                 setEndpoint(event.target.value);

@@ -27,7 +27,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         <HoverTooltip title={topTooltip}>
           <button
             aria-label="Expand upwards"
-            className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[100%] rounded border border-ui-border bg-white px-1 text-xs hover:bg-slate-100"
+            className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[100%] rounded border border-ui-border bg-surface px-1 text-xs text-text-strong hover:bg-surface-hover"
             type="button"
             onClick={(event) => {
               event.stopPropagation();
@@ -39,7 +39,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         </HoverTooltip>
       ) : null}
       <div
-        className="relative min-w-[12rem] rounded-panel border bg-white px-4 py-3 text-center shadow-sm"
+        className="relative min-w-[12rem] rounded-panel border bg-surface px-4 py-3 text-center text-text-strong shadow-sm"
         style={{ borderColor: nodeBorderColor }}
         onClick={(event) => {
           data.onSelectNode(data.id_array, event.shiftKey);
@@ -58,7 +58,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
                   : `${String(data.countDistinct)} distinct instances, ${String(data.countTotal)} instances total`
               }
             >
-              <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-xs text-slate-700">
+              <span className="rounded bg-surface-alt px-2 py-0.5 font-mono text-xs text-muted">
                 {data.countDistinct == null || data.countTotal == null
                   ? "..."
                   : data.countDistinct === data.countTotal
@@ -67,7 +67,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
               </span>
             </HoverTooltip>
           </div>
-          <code className="mt-1 block rounded bg-slate-100 px-2 py-1 font-mono text-xs text-slate-700">
+          <code className="mt-1 block rounded bg-surface-alt px-2 py-1 font-mono text-xs text-muted">
             {abbreviateType(data.targetPath.rdf_type)}
           </code>
         </div>
@@ -78,7 +78,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         >
           <button
             aria-label="Expand downwards"
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[100%] rounded border border-ui-border bg-white px-1 text-xs hover:bg-slate-100"
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[100%] rounded border border-ui-border bg-surface px-1 text-xs text-text-strong hover:bg-surface-hover"
             type="button"
             onClick={(event) => {
               event.stopPropagation();

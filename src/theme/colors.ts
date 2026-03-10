@@ -1,9 +1,9 @@
 export const graphNodeBorderColors = {
-  count: "#16a34a",
-  default: "#d9d9d9",
-  selected: "#000000",
+  count: "#067a57",
+  default: "rgb(186 194 214)",
+  selected: "#2d3a68",
 } as const;
 
 export const graphEdgeColors = {
-  selectedSubgraph: "#000000",
+  selectedSubgraph: "#2d3a68",
 } as const;

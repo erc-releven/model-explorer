@@ -9,6 +9,7 @@ import {
   type GridRenderCellParams,
 } from "@mui/x-data-grid";
 import { useEffect, useMemo, useState } from "react";
+
 import { highlightCodeToHtml } from "./highlight";
 
 interface SparqlBindingValue {
@@ -163,12 +164,13 @@ export function SparqlResults({
 
   if (isLoading) {
     return (
-      <div aria-label="SPARQL results" className="panel w-full p-4">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center gap-2">
-            <CircularProgress size={24} />
-            <p className="mb-0 text-sm">{`Executing query... ${String(elapsedSeconds)}s`}</p>
-          </div>
+      <div
+        aria-label="SPARQL results"
+        className="panel h-screen max-h-screen w-full p-4"
+      >
+        <div className="flex items-center justify-center gap-2">
+          <CircularProgress color="secondary" size={24} />
+          <p className="mb-0 text-sm">{`Executing query... ${String(elapsedSeconds)}s`}</p>
         </div>
       </div>
     );
@@ -179,13 +181,13 @@ export function SparqlResults({
       <div className="flex items-center justify-between gap-3">
         {hasSuccessfulResult ? (
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="rounded-panel border border-ui-border px-2 py-1">
+            <span className="rounded-panel border border-ui-border bg-surface-alt px-2 py-1 text-text-strong">
               <strong>Results:</strong> {resultCount.toLocaleString()}
             </span>
-            <span className="rounded-panel border border-ui-border px-2 py-1">
+            <span className="rounded-panel border border-ui-border bg-surface-alt px-2 py-1 text-text-strong">
               <strong>Time:</strong> {queryDurationMs?.toFixed(0) ?? "0"} ms
             </span>
-            <span className="rounded-panel border border-ui-border px-2 py-1">
+            <span className="rounded-panel border border-ui-border bg-surface-alt px-2 py-1 text-text-strong">
               <strong>Payload:</strong>{" "}
               {payloadSizeBytes?.toLocaleString() ?? "0"} bytes
             </span>
@@ -194,6 +196,7 @@ export function SparqlResults({
           <div />
         )}
         <ToggleButtonGroup
+          color="secondary"
           exclusive
           size="small"
           value={viewMode}
@@ -208,7 +211,7 @@ export function SparqlResults({
         </ToggleButtonGroup>
       </div>
       {error != null ? (
-        <pre className="mt-2 overflow-auto rounded-panel border border-ui-border p-3 text-sm">
+        <pre className="app-code-surface mt-2 overflow-auto rounded-panel border border-ui-border p-3 text-sm">
           {error}
         </pre>
       ) : null}
@@ -219,7 +222,7 @@ export function SparqlResults({
       ) : null}
       {error == null && result != null && viewMode === "raw" ? (
         <div
-          className="mt-2 overflow-auto rounded-panel border border-ui-border p-3 text-sm [&_pre]:m-0 [&_pre]:!bg-transparent [&_pre]:p-0"
+          className="app-code-surface mt-2 overflow-auto rounded-panel border border-ui-border p-3 text-sm [&_pre]:m-0 [&_pre]:!bg-transparent [&_pre]:p-0"
           dangerouslySetInnerHTML={{ __html: highlightedHtml }}
         />
       ) : null}
@@ -235,6 +238,15 @@ export function SparqlResults({
               columns={tableColumns}
               disableColumnFilter
               disableRowSelectionOnClick
+              initialState={{
+                pagination: {
+                  paginationModel: {
+                    pageSize: 20,
+                    page: 0,
+                  },
+                },
+              }}
+              pageSizeOptions={[20, 50, 100]}
               rows={tableRows}
               sortingOrder={["asc", "desc"]}
             />

@@ -238,9 +238,9 @@ export function ModelViewer({
   return (
     <div
       aria-label="Model viewer"
-      className="panel flex min-h-[70vh] flex-col gap-4 p-4"
+      className="flex min-h-[70vh] flex-col gap-4"
     >
-      <header className="rounded-panel border border-ui-border bg-slate-50 p-3">
+      <header className="rounded-panel border border-ui-border bg-surface-alt p-3 text-text-strong">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="m-0 text-base">
             Parsed {String(allPaths.length)} paths from{" "}
@@ -249,7 +249,7 @@ export function ModelViewer({
           </h2>
           <ToggleButtonGroup
             aria-label="Sort root types"
-            color="primary"
+            color="secondary"
             exclusive
             size="small"
             value={rootTypeSort}
@@ -284,7 +284,7 @@ export function ModelViewer({
                 }
               >
                 <button
-                  className="rounded-panel border border-ui-border bg-white px-2 py-1 text-sm hover:bg-slate-100"
+                  className="rounded-panel border border-ui-border bg-surface px-2 py-1 text-sm text-text-strong hover:bg-surface-hover"
                   type="button"
                   onClick={() => {
                     dispatchModelState({

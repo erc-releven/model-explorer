@@ -196,7 +196,7 @@ function getGreenEdgeIdsBehindCountNodes(
     for (const countNodeId of countNodeIds) {
       const countDepth = depthByNode.get(countNodeId);
 
-      if (countDepth == null || childDepth <= countDepth) {
+      if (countDepth == null || childDepth < countDepth) {
         continue;
       }
 

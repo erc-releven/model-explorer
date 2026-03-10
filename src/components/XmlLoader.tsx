@@ -1,11 +1,21 @@
-import { Alert, Button, Stack, TextField, Typography } from "@mui/material";
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { type ChangeEvent, type Dispatch, useState } from "react";
 
+import { defaultScenario, type ScenarioAction } from "../scenario";
 import {
   parsePathbuilderXml,
   type Pathbuilder,
 } from "../serializer/pathbuilder";
-import { defaultScenario, type ScenarioAction } from "../scenario";
 import { resolveXmlSourceForFetch } from "../utils/resolve-xml-source";
 
 interface XmlLoaderProps {
@@ -32,6 +42,7 @@ export function XmlLoader({
   onXmlLoaded,
 }: XmlLoaderProps) {
   const [isUrlLoading, setIsUrlLoading] = useState(false);
+  const [isUrlDialogOpen, setIsUrlDialogOpen] = useState(false);
   const [loadError, setLoadError] = useState<null | string>(null);
   const [loadResult, setLoadResult] = useState<LoadResult | null>(null);
   const [urlInput, setUrlInput] = useState("");
@@ -90,6 +101,7 @@ export function XmlLoader({
 
     try {
       await loadXmlFromUrl(normalizedUrl);
+      setIsUrlDialogOpen(false);
     } catch (error: unknown) {
       setLoadResult(null);
       setLoadError(
@@ -114,17 +126,30 @@ export function XmlLoader({
   }
 
   return (
-    <div aria-label="XML loader" className="loader-shell min-h-loader p-4">
+    <div
+      aria-label="XML loader"
+      className="min-h-loader rounded-panel bg-surface-alt p-4 text-text-strong"
+    >
       <Stack spacing={2}>
-        <Typography component="h2" variant="h6">
-          XML Loader
-        </Typography>
-        <Stack spacing={1}>
-          <Typography variant="subtitle2">Upload file</Typography>
+        <div className="flex flex-wrap items-center gap-2">
+          <Typography
+            component="h2"
+            sx={{
+              alignItems: "center",
+              display: "flex",
+              justifyContent: "center",
+              lineHeight: 1.2,
+              minHeight: 32,
+              mr: 1,
+            }}
+            variant="subtitle1"
+          >
+            Load Pathbuilder File
+          </Typography>
           <Button
             component="label"
+            disabled={isUrlLoading}
             size="small"
-            sx={{ alignSelf: "flex-start" }}
             variant="contained"
           >
             Upload XML
@@ -137,66 +162,93 @@ export function XmlLoader({
               }}
             />
           </Button>
-        </Stack>
-        <Stack spacing={1}>
-          <Typography variant="subtitle2">Fixed files</Typography>
-          <Stack direction="row" spacing={1}>
-            {xmlShortcuts.map((shortcut) => (
-              <Button
-                key={shortcut}
-                disabled={isUrlLoading}
-                size="small"
-                variant="outlined"
-                onClick={() => {
-                  setIsUrlLoading(true);
-                  void loadXmlFromUrl(resolveXmlSourceForFetch(shortcut))
-                    .catch((error: unknown) => {
-                      setLoadResult(null);
-                      setLoadError(
-                        error instanceof Error
-                          ? error.message
-                          : "Failed to load XML from shortcut.",
-                      );
-                    })
-                    .finally(() => {
-                      setIsUrlLoading(false);
-                    });
-                }}
-              >
-                {shortcut}
-              </Button>
-            ))}
-          </Stack>
-        </Stack>
-        <Stack spacing={1}>
-          <Typography variant="subtitle2">Load from URL</Typography>
-          <Stack direction="row" spacing={1}>
-            <TextField
-              className="w-[28rem]"
-              label="XML URL"
-              placeholder="https://example.com/model.xml"
-              size="small"
-              value={urlInput}
-              onChange={(event) => {
-                setUrlInput(event.target.value);
-              }}
-            />
+          <Button
+            disabled={isUrlLoading}
+            size="small"
+            variant="contained"
+            onClick={() => {
+              setIsUrlDialogOpen(true);
+            }}
+          >
+            Load XML from URL
+          </Button>
+
+          {xmlShortcuts.map((shortcut) => (
             <Button
+              key={shortcut}
               disabled={isUrlLoading}
-              variant="contained"
+              size="small"
+              variant="outlined"
               onClick={() => {
-                void onLoadFromUrl();
+                setIsUrlLoading(true);
+                void loadXmlFromUrl(resolveXmlSourceForFetch(shortcut))
+                  .catch((error: unknown) => {
+                    setLoadResult(null);
+                    setLoadError(
+                      error instanceof Error
+                        ? error.message
+                        : "Failed to load XML from shortcut.",
+                    );
+                  })
+                  .finally(() => {
+                    setIsUrlLoading(false);
+                  });
               }}
             >
-              {isUrlLoading ? "Loading..." : "Load XML"}
+              {shortcut}
             </Button>
-          </Stack>
-        </Stack>
+          ))}
+        </div>
         {loadError != null ? <Alert severity="error">{loadError}</Alert> : null}
         {loadResult != null ? (
           <Alert severity="success">{`Loaded ${loadResult.source}`}</Alert>
         ) : null}
       </Stack>
+      <Dialog
+        fullWidth
+        maxWidth="sm"
+        open={isUrlDialogOpen}
+        onClose={() => {
+          if (!isUrlLoading) {
+            setIsUrlDialogOpen(false);
+          }
+        }}
+      >
+        <DialogTitle>Load XML from URL</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            className="mt-2"
+            label="XML URL"
+            placeholder="https://example.com/model.xml"
+            size="small"
+            value={urlInput}
+            onChange={(event) => {
+              setUrlInput(event.target.value);
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            disabled={isUrlLoading}
+            onClick={() => {
+              setIsUrlDialogOpen(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            disabled={isUrlLoading}
+            variant="contained"
+            onClick={() => {
+              void onLoadFromUrl();
+            }}
+          >
+            {isUrlLoading ? "Loading..." : "Load XML"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }

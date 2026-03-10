@@ -4,15 +4,15 @@
 
 @layer base {
   .theme-light {
-    --app-bg: #f6f7fb;
-    --app-border: #d6dae3;
-    --app-code-bg: #eef2ff;
-    --app-code-fg: #23334a;
-    --app-muted: #55657a;
+    --app-bg: #f5f6fa;
+    --app-border: rgb(0 17 102);
+    --app-code-bg: #f5f6fa;
+    --app-code-fg: #2d3a68;
+    --app-muted: rgb(0 9 51);
     --app-surface: #ffffff;
-    --app-surface-hover: #eef3fb;
-    --app-surface-subtle: #f7f9fc;
-    --app-text: #0f172a;
+    --app-surface-hover: rgb(0 21 128);
+    --app-surface-subtle: rgb(0 21 128);
+    --app-text: rgb(0 6 38);
   }
 
   .theme-dark {
