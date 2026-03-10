@@ -15,6 +15,7 @@ import { serializeScenarioToSparql } from "./sparql";
 
 type SelectionDirection = "<" | ">";
 type ParsedSelection = Array<string>;
+type ScenarioSelection = string | { selected: NodeState["selected"]; selection: string };
 
 interface StatementGraph {
   statementVariableSets: Array<Set<string>>;
@@ -167,11 +168,13 @@ function upsertNodeState(
 
 function createScenarioFromSelections(
   pathbuilder: Pathbuilder,
-  selections: Array<string>,
+  selections: Array<ScenarioSelection>,
 ): Scenario {
   const statesById = new Map<string, NodeState>();
 
-  for (const selection of selections) {
+  for (const entry of selections) {
+    const selection = typeof entry === "string" ? entry : entry.selection;
+    const selectedState = typeof entry === "string" ? "value" : entry.selected;
     const resolvedPath = resolveSelectionPath(pathbuilder, selection);
 
     for (let index = 0; index < resolvedPath.length - 1; index += 2) {
@@ -185,7 +188,7 @@ function createScenarioFromSelections(
     upsertNodeState(statesById, resolvedPath, (state) => {
       return {
         ...state,
-        selected: "value",
+        selected: selectedState,
       };
     });
   }
@@ -348,31 +351,6 @@ function collectStatementGraph(patterns: Array<unknown>): StatementGraph {
         if ("where" in pattern && Array.isArray(pattern.where)) {
           mergeStatementGraph(graph, collectStatementGraph(pattern.where));
         }
-
-        if ("variables" in pattern && Array.isArray(pattern.variables)) {
-          const projectedVariables = new Set<string>();
-
-          for (const variable of pattern.variables) {
-            if (isVariableTerm(variable)) {
-              projectedVariables.add(`?${variable.value}`);
-              continue;
-            }
-
-            const aliasedVariable = getAliasedVariable(variable);
-
-            if (aliasedVariable != null) {
-              projectedVariables.add(aliasedVariable);
-            }
-          }
-
-          for (const variable of projectedVariables) {
-            graph.variables.add(variable);
-          }
-
-          if (projectedVariables.size > 0) {
-            graph.statementVariableSets.push(projectedVariables);
-          }
-        }
         break;
       }
     }
@@ -381,7 +359,7 @@ function collectStatementGraph(patterns: Array<unknown>): StatementGraph {
   return graph;
 }
 
-function getSelectVariables(parsedQuery: { variables?: Array<unknown> }): Set<string> {
+function getProjectedVariables(parsedQuery: { variables?: Array<unknown> }): Set<string> {
   const variables = new Set<string>();
 
   for (const variable of parsedQuery.variables ?? []) {
@@ -394,6 +372,63 @@ function getSelectVariables(parsedQuery: { variables?: Array<unknown> }): Set<st
 
     if (aliasedVariable != null) {
       variables.add(aliasedVariable);
+    }
+  }
+
+  return variables;
+}
+
+function collectNestedQueryProjectedVariables(patterns: Array<unknown>): Set<string> {
+  const variables = new Set<string>();
+
+  for (const pattern of patterns) {
+    const record = asRecord(pattern);
+
+    if (record == null || !("type" in record)) {
+      continue;
+    }
+
+    switch (record.type) {
+      case "group":
+      case "graph":
+      case "minus":
+      case "optional":
+      case "service": {
+        if ("patterns" in record && Array.isArray(record.patterns)) {
+          for (const variable of collectNestedQueryProjectedVariables(record.patterns)) {
+            variables.add(variable);
+          }
+        }
+        break;
+      }
+
+      case "union": {
+        if ("patterns" in record && Array.isArray(record.patterns)) {
+          for (const branch of record.patterns) {
+            if (!Array.isArray(branch)) {
+              continue;
+            }
+
+            for (const variable of collectNestedQueryProjectedVariables(branch)) {
+              variables.add(variable);
+            }
+          }
+        }
+        break;
+      }
+
+      case "query": {
+        for (const variable of getProjectedVariables(record)) {
+          variables.add(variable);
+        }
+
+        if ("where" in record && Array.isArray(record.where)) {
+          for (const variable of collectNestedQueryProjectedVariables(record.where)) {
+            variables.add(variable);
+          }
+        }
+        break;
+      }
     }
   }
 
@@ -454,23 +489,53 @@ function expectContiguousVariableGraph(graph: StatementGraph): void {
 }
 
 describe("serializeScenarioToSparql", () => {
-  test("keeps selected variables grounded in one contiguous WHERE graph", () => {
+  test.each([
+    {
+      selections: ["g_person", "g_person > p_display_name"],
+      title: "keeps selected variables grounded in one contiguous WHERE graph",
+    },
+    {
+      selections: [
+        {
+          selected: "value" as const,
+          selection: "g_social_relationship > p_social_relationship_display_name",
+        },
+        {
+          selected: "count" as const,
+          selection: "g_social_relationship > g_social_relationship_categorisation_assertion",
+        },
+      ],
+      title: "keeps mixed value and count selections grounded in one contiguous WHERE graph",
+    },
+  ])("$title", ({ selections }) => {
     const pathbuilder = loadDefaultPathbuilder();
-    const scenario = createScenarioFromSelections(pathbuilder, [
-      "g_person",
-      "g_person > p_display_name",
-    ]);
+    const scenario = createScenarioFromSelections(pathbuilder, selections);
     const query = serializeScenarioToSparql(scenario, pathbuilder);
     const parsedQuery = new SparqlParser().parse(query) as {
       variables?: Array<unknown>;
       where?: Array<unknown>;
     };
-    const selectVariables = getSelectVariables(parsedQuery);
+    const selectVariables = getProjectedVariables(parsedQuery);
+    const nestedQueryProjectedVariables = collectNestedQueryProjectedVariables(
+      parsedQuery.where ?? [],
+    );
     const whereGraph = collectStatementGraph(parsedQuery.where ?? []);
+    const countSelectionCount = scenario.nodes.filter((node) => node.selected === "count").length;
+
+    expect(
+      Array.from(selectVariables).filter((variable) => {
+        return nestedQueryProjectedVariables.has(variable);
+      }).length,
+    ).toBe(countSelectionCount);
 
     for (const variable of selectVariables) {
+      if (nestedQueryProjectedVariables.has(variable)) {
+        continue;
+      }
+
       expect(whereGraph.variables.has(variable)).toBe(true);
     }
+
     expectContiguousVariableGraph(whereGraph);
   });
 });
