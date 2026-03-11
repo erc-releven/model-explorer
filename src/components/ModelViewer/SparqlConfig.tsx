@@ -552,7 +552,9 @@ export function SparqlConfig({
                     copy to clipboard
                   </Button>
                 </div>
-                {activeTab === "sparql" ? (
+                <div
+                  className={activeTab === "sparql" ? "block" : "hidden"}
+                >
                   <div className="relative min-h-[18rem] overflow-hidden rounded-panel border border-ui-border">
                     <div
                       ref={highlightedCodeRef}
@@ -572,7 +574,10 @@ export function SparqlConfig({
                       onScroll={onTextAreaScroll}
                     />
                   </div>
-                ) : (
+                </div>
+                <div
+                  className={activeTab === "pydantic" ? "block" : "hidden"}
+                >
                   <div className="relative min-h-[18rem] overflow-hidden rounded-panel border border-ui-border">
                     <div
                       ref={pydanticHighlightedCodeRef}
@@ -592,7 +597,7 @@ export function SparqlConfig({
                       onScroll={onPydanticTextAreaScroll}
                     />
                   </div>
-                )}
+                </div>
                 {activeTab === "sparql" && querySyntaxError != null ? (
                   <Typography color="warning.main" variant="caption">
                     {querySyntaxError}
