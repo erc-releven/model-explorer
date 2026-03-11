@@ -248,18 +248,6 @@ function asRecord(value: unknown): null | UnknownRecord {
   return typeof value === "object" && value != null ? (value as UnknownRecord) : null;
 }
 
-function getAliasedVariable(value: unknown): null | string {
-  const record = asRecord(value);
-
-  if (record == null || !("variable" in record)) {
-    return null;
-  }
-
-  const variable = record.variable;
-
-  return isVariableTerm(variable) ? `?${variable.value}` : null;
-}
-
 function mergeStatementGraph(target: StatementGraph, source: StatementGraph): void {
   for (const variable of source.variables) {
     target.variables.add(variable);
@@ -368,10 +356,11 @@ function getProjectedVariables(parsedQuery: { variables?: Array<unknown> }): Set
       continue;
     }
 
-    const aliasedVariable = getAliasedVariable(variable);
+    const record = asRecord(variable);
+    const projectedVariable = record == null ? undefined : record.variable;
 
-    if (aliasedVariable != null) {
-      variables.add(aliasedVariable);
+    if (isVariableTerm(projectedVariable)) {
+      variables.add(`?${projectedVariable.value}`);
     }
   }
 
@@ -384,7 +373,7 @@ function collectNestedQueryProjectedVariables(patterns: Array<unknown>): Set<str
   for (const pattern of patterns) {
     const record = asRecord(pattern);
 
-    if (record == null || !("type" in record)) {
+    if (record == null || typeof record.type !== "string") {
       continue;
     }
 
@@ -394,7 +383,7 @@ function collectNestedQueryProjectedVariables(patterns: Array<unknown>): Set<str
       case "minus":
       case "optional":
       case "service": {
-        if ("patterns" in record && Array.isArray(record.patterns)) {
+        if (Array.isArray(record.patterns)) {
           for (const variable of collectNestedQueryProjectedVariables(record.patterns)) {
             variables.add(variable);
           }
@@ -403,7 +392,7 @@ function collectNestedQueryProjectedVariables(patterns: Array<unknown>): Set<str
       }
 
       case "union": {
-        if ("patterns" in record && Array.isArray(record.patterns)) {
+        if (Array.isArray(record.patterns)) {
           for (const branch of record.patterns) {
             if (!Array.isArray(branch)) {
               continue;
@@ -422,7 +411,7 @@ function collectNestedQueryProjectedVariables(patterns: Array<unknown>): Set<str
           variables.add(variable);
         }
 
-        if ("where" in record && Array.isArray(record.where)) {
+        if (Array.isArray(record.where)) {
           for (const variable of collectNestedQueryProjectedVariables(record.where)) {
             variables.add(variable);
           }
@@ -433,6 +422,20 @@ function collectNestedQueryProjectedVariables(patterns: Array<unknown>): Set<str
   }
 
   return variables;
+}
+
+function omitTopLevelVariables(parsedQuery: {
+  variables?: Array<unknown>;
+  where?: Array<unknown>;
+}): Record<string, unknown> {
+  const record = asRecord(parsedQuery);
+
+  if (record == null) {
+    return {};
+  }
+
+  const { variables: _variables, ...rest } = record;
+  return rest;
 }
 
 function expectContiguousVariableGraph(graph: StatementGraph): void {
@@ -488,26 +491,46 @@ function expectContiguousVariableGraph(graph: StatementGraph): void {
   expect(visited).toEqual(new Set(variables));
 }
 
+const mixedCountSelectionsWithoutRoot = [
+  {
+    selected: "value" as const,
+    selection: "g_social_relationship > p_social_relationship_display_name",
+  },
+  {
+    selected: "count" as const,
+    selection: "g_social_relationship > g_social_relationship_categorisation_assertion",
+  },
+] as const satisfies Array<ScenarioSelection>;
+
+const mixedCountSelectionsWithRoot = [
+  "g_social_relationship",
+  ...mixedCountSelectionsWithoutRoot,
+] as const satisfies Array<ScenarioSelection>;
+
+const serializerScenarios = [
+  {
+    selections: ["g_person", "g_person > p_display_name"] as const satisfies Array<ScenarioSelection>,
+    title: "keeps selected variables grounded in one contiguous WHERE graph",
+  },
+  {
+    selections: mixedCountSelectionsWithoutRoot,
+    title: "keeps mixed value and count selections grounded in one contiguous WHERE graph",
+  },
+  {
+    selections: mixedCountSelectionsWithRoot,
+    title: "keeps mixed value and count selections contiguous when the root node is also selected",
+  },
+] as const;
+
+const countOnlySelection = [
+  {
+    selected: "count" as const,
+    selection: "g_social_relationship > p_social_relationship_display_name",
+  },
+] as const satisfies Array<ScenarioSelection>;
+
 describe("serializeScenarioToSparql", () => {
-  test.each([
-    {
-      selections: ["g_person", "g_person > p_display_name"],
-      title: "keeps selected variables grounded in one contiguous WHERE graph",
-    },
-    {
-      selections: [
-        {
-          selected: "value" as const,
-          selection: "g_social_relationship > p_social_relationship_display_name",
-        },
-        {
-          selected: "count" as const,
-          selection: "g_social_relationship > g_social_relationship_categorisation_assertion",
-        },
-      ],
-      title: "keeps mixed value and count selections grounded in one contiguous WHERE graph",
-    },
-  ])("$title", ({ selections }) => {
+  test.each(serializerScenarios)("$title", ({ selections }) => {
     const pathbuilder = loadDefaultPathbuilder();
     const scenario = createScenarioFromSelections(pathbuilder, selections);
     const query = serializeScenarioToSparql(scenario, pathbuilder);
@@ -520,13 +543,6 @@ describe("serializeScenarioToSparql", () => {
       parsedQuery.where ?? [],
     );
     const whereGraph = collectStatementGraph(parsedQuery.where ?? []);
-    const countSelectionCount = scenario.nodes.filter((node) => node.selected === "count").length;
-
-    expect(
-      Array.from(selectVariables).filter((variable) => {
-        return nestedQueryProjectedVariables.has(variable);
-      }).length,
-    ).toBe(countSelectionCount);
 
     for (const variable of selectVariables) {
       if (nestedQueryProjectedVariables.has(variable)) {
@@ -537,5 +553,57 @@ describe("serializeScenarioToSparql", () => {
     }
 
     expectContiguousVariableGraph(whereGraph);
+  });
+
+  test("serializes the two mixed count scenarios identically apart from one extra selected variable", () => {
+    const pathbuilder = loadDefaultPathbuilder();
+    const baseScenario = createScenarioFromSelections(pathbuilder, mixedCountSelectionsWithoutRoot);
+    const rootSelectedScenario = createScenarioFromSelections(
+      pathbuilder,
+      mixedCountSelectionsWithRoot,
+    );
+    const parser = new SparqlParser();
+    const baseParsedQuery = parser.parse(
+      serializeScenarioToSparql(baseScenario, pathbuilder),
+    ) as {
+      variables?: Array<unknown>;
+      where?: Array<unknown>;
+    };
+    const rootSelectedParsedQuery = parser.parse(
+      serializeScenarioToSparql(rootSelectedScenario, pathbuilder),
+    ) as {
+      variables?: Array<unknown>;
+      where?: Array<unknown>;
+    };
+    const baseSelectVariables = getProjectedVariables(baseParsedQuery);
+    const rootSelectedSelectVariables = getProjectedVariables(rootSelectedParsedQuery);
+    const additionalVariables = Array.from(rootSelectedSelectVariables).filter((variable) => {
+      return !baseSelectVariables.has(variable);
+    });
+
+    expect(Array.from(baseSelectVariables).filter((variable) => !rootSelectedSelectVariables.has(variable)))
+      .toEqual([]);
+    expect(additionalVariables).toHaveLength(1);
+    expect(omitTopLevelVariables(rootSelectedParsedQuery)).toEqual(
+      omitTopLevelVariables(baseParsedQuery),
+    );
+  });
+
+  test("serializes a lone count selection as an ungrouped subselect in the WHERE clause", () => {
+    const pathbuilder = loadDefaultPathbuilder();
+    const scenario = createScenarioFromSelections(pathbuilder, countOnlySelection);
+    const parsedQuery = new SparqlParser().parse(
+      serializeScenarioToSparql(scenario, pathbuilder),
+    ) as {
+      where?: Array<unknown>;
+    };
+    const topLevelWherePatterns = parsedQuery.where ?? [];
+
+    expect(topLevelWherePatterns).toHaveLength(1);
+
+    const subselect = asRecord(topLevelWherePatterns[0]);
+
+    expect(subselect?.type).toBe("query");
+    expect("group" in (subselect ?? {})).toBe(false);
   });
 });

@@ -548,16 +548,38 @@ function compileAstToSparql(
     return undefined;
   }
 
-  function getImplicitRootNodeIdForCount(countNodeId: string): undefined | string {
-    const node = nodeById.get(countNodeId);
-    const rootPart = node?.data.id_array[0];
+  function isDescendantOrSame(nodeId: string, ancestorNodeId: string): boolean {
+    let cursor: undefined | string = nodeId;
 
-    if (rootPart == null) {
-      return undefined;
+    while (cursor != null) {
+      if (cursor === ancestorNodeId) {
+        return true;
+      }
+
+      cursor = parentByNodeId.get(cursor);
     }
 
-    const rootNodeId = stringifyPath([rootPart]);
-    return nodeById.has(rootNodeId) ? rootNodeId : undefined;
+    return false;
+  }
+
+  function getImplicitRootNodeIdForCount(countNodeId: string): undefined | string {
+    const otherSelectedNodeIds = selectedNodeIdsInWhereOrder.filter((nodeId) => nodeId !== countNodeId);
+
+    if (otherSelectedNodeIds.length === 0) {
+      return countNodeId;
+    }
+
+    let cursor: undefined | string = countNodeId;
+
+    while (cursor != null) {
+      if (otherSelectedNodeIds.every((nodeId) => isDescendantOrSame(nodeId, cursor!))) {
+        return cursor;
+      }
+
+      cursor = parentByNodeId.get(cursor);
+    }
+
+    return undefined;
   }
 
   function getPathNodeIdsFromAnchorToCount(
@@ -591,25 +613,40 @@ function compileAstToSparql(
     return includeAnchorNode ? pathFromCount : pathFromCount.slice(1);
   }
 
+  function getPathNodeIdsFromRootToNode(nodeId: string): Array<string> {
+    const path: Array<string> = [];
+    let cursor: undefined | string = nodeId;
+
+    while (cursor != null) {
+      path.push(cursor);
+      cursor = parentByNodeId.get(cursor);
+    }
+
+    path.reverse();
+    return path;
+  }
+
   const countWrappers = countNodeIds
     .map((countNodeId) => {
       const explicitAnchorNodeId = getExplicitAnchorNodeId(countNodeId);
       const implicitRootNodeId =
         explicitAnchorNodeId == null ? getImplicitRootNodeIdForCount(countNodeId) : undefined;
       const anchorNodeId = explicitAnchorNodeId ?? implicitRootNodeId ?? countNodeId;
-      const anchorVariable =
-        explicitAnchorNodeId == null ? undefined : nodeVariableById.get(anchorNodeId);
+      const hasAnchor = anchorNodeId !== countNodeId;
+      const anchorVariable = hasAnchor ? nodeVariableById.get(anchorNodeId) : undefined;
       const countVariable = nodeVariableById.get(countNodeId);
+      const isLoneImplicitCountSelection =
+        explicitAnchorNodeId == null &&
+        implicitRootNodeId === countNodeId &&
+        selectedNodeIdsInWhereOrder.filter((nodeId) => nodeId !== countNodeId).length === 0;
 
-      if (countVariable == null || (explicitAnchorNodeId != null && anchorVariable == null)) {
+      if (countVariable == null || (hasAnchor && anchorVariable == null)) {
         return null;
       }
 
-      const pathNodeIds = getPathNodeIdsFromAnchorToCount(
-        anchorNodeId,
-        countNodeId,
-        explicitAnchorNodeId == null,
-      );
+      const pathNodeIds = isLoneImplicitCountSelection
+        ? getPathNodeIdsFromRootToNode(countNodeId)
+        : getPathNodeIdsFromAnchorToCount(anchorNodeId, countNodeId, !hasAnchor);
 
       if (pathNodeIds.length === 0) {
         return null;
@@ -629,7 +666,7 @@ function compileAstToSparql(
       return {
         anchorVariable,
         countVariable,
-        hasAnchor: explicitAnchorNodeId != null,
+        hasAnchor,
         statementIndexes,
       };
     })
@@ -694,15 +731,16 @@ function compileAstToSparql(
         });
         const indent = /^\s*/.exec(originalLines[0]!)?.[0] ?? "";
         const anchorVariable = wrapper.anchorVariable;
+        const optionalPrefix = shouldIncludeZeroCountResults && wrapper.hasAnchor ? "OPTIONAL " : "";
 
         whereLines.push(
           wrapper.hasAnchor
-            ? `${indent}${shouldIncludeZeroCountResults ? "OPTIONAL " : ""}{ SELECT ${anchorVariable ?? ""} (COUNT(${shouldCountDistinct ? "DISTINCT " : ""}${wrapper.countVariable}) AS ${wrapper.countVariable}_count) WHERE {`
-            : `${indent}${shouldIncludeZeroCountResults ? "OPTIONAL " : ""}{ SELECT (COUNT(${shouldCountDistinct ? "DISTINCT " : ""}${wrapper.countVariable}) AS ${wrapper.countVariable}_count) WHERE {`,
+            ? `${indent}${optionalPrefix}{ SELECT ${anchorVariable ?? ""} (COUNT(${shouldCountDistinct ? "DISTINCT " : ""}${wrapper.countVariable}) AS ${wrapper.countVariable}_count) WHERE {`
+            : `${indent}SELECT (COUNT(${shouldCountDistinct ? "DISTINCT " : ""}${wrapper.countVariable}) AS ${wrapper.countVariable}_count) WHERE {`,
         );
         whereLines.push(...originalLines);
         whereLines.push(
-          wrapper.hasAnchor ? `${indent}} GROUP BY ${anchorVariable ?? ""} }` : `${indent}} }`,
+          wrapper.hasAnchor ? `${indent}} GROUP BY ${anchorVariable ?? ""} }` : `${indent}}`,
         );
       }
     }
