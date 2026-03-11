@@ -34,6 +34,24 @@ interface SparqlResultsProps {
   result: null | string;
 }
 
+const xsdIntegerDatatype = "http://www.w3.org/2001/XMLSchema#integer";
+
+function getSortableCellValue(
+  cell: SparqlBindingValue | undefined,
+): number | string {
+  if (cell == null) {
+    return "";
+  }
+
+  if (cell.datatype === xsdIntegerDatatype) {
+    const parsedInteger = Number.parseInt(cell.value, 10);
+
+    return Number.isNaN(parsedInteger) ? cell.value : parsedInteger;
+  }
+
+  return cell.value;
+}
+
 export function SparqlResults({
   error,
   isLoading,
@@ -107,10 +125,19 @@ export function SparqlResults({
   const tableColumns = useMemo<Array<GridColDef>>(() => {
     const vars = parsedResult?.head?.vars ?? [];
 
-    return vars.map((variable): GridColDef => {
+    return [
+      {
+        field: "rowNumber",
+        headerName: "#",
+        renderCell: (params: GridRenderCellParams) => {
+          return String(params.api.getRowIndexRelativeToVisibleRows(params.id) + 1);
+        },
+        sortable: false,
+        width: 72,
+      },
+      ...vars.map((variable): GridColDef => {
       return {
         field: variable,
-        flex: 1,
         minWidth: 180,
         renderCell: (params: GridRenderCellParams) => {
           const row = params.row as Record<
@@ -136,16 +163,26 @@ export function SparqlResults({
           return cell.value;
         },
         sortable: true,
+        sortComparator: (left, right) => {
+          if (typeof left === "number" && typeof right === "number") {
+            return left - right;
+          }
+
+          return String(left).localeCompare(String(right), undefined, {
+            numeric: true,
+          });
+        },
         valueGetter: (_value, row) => {
           const typedRow = row as Record<
             string,
             SparqlBindingValue | undefined
           >;
           const cell = typedRow[variable];
-          return cell?.value ?? "";
+          return getSortableCellValue(cell);
         },
       };
-    });
+      }),
+    ];
   }, [parsedResult]);
 
   const tableRows = useMemo(() => {
@@ -234,19 +271,13 @@ export function SparqlResults({
         ) : (
           <div className="mt-2 w-full rounded-panel border border-ui-border">
             <DataGrid
+              autosizeOnMount
+              autosizeOptions={{ expand: false, includeHeaders: true }}
               className="h-[40rem]"
               columns={tableColumns}
               disableColumnFilter
               disableRowSelectionOnClick
-              initialState={{
-                pagination: {
-                  paginationModel: {
-                    pageSize: 20,
-                    page: 0,
-                  },
-                },
-              }}
-              pageSizeOptions={[20, 50, 100]}
+              hideFooter
               rows={tableRows}
               sortingOrder={["asc", "desc"]}
             />

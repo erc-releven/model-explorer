@@ -1,3 +1,4 @@
+import { Tooltip } from "@mui/material";
 import {
   DataGrid,
   type GridColDef,
@@ -5,10 +6,7 @@ import {
 } from "@mui/x-data-grid";
 import { type Dispatch, useMemo } from "react";
 
-import {
-  createDefaultNodeState,
-  type ScenarioAction,
-} from "../../../scenario";
+import { createDefaultNodeState, type ScenarioAction } from "../../../scenario";
 import type { PathbuilderPath } from "../../../serializer/pathbuilder";
 
 interface RootClassesPanelProps {
@@ -16,6 +14,16 @@ interface RootClassesPanelProps {
   instanceCountByPathId: Record<string, number>;
   pathsWithReferences: Array<PathbuilderPath>;
   xmlLoadError: null | string;
+}
+
+interface RootClassRow {
+  id: string;
+  instanceCount: number | undefined;
+  name: string;
+  rdfType: string;
+  referenceCount: number;
+  references: Array<string>;
+  rootNodeId: string;
 }
 
 export function RootClassesPanel({
@@ -31,57 +39,117 @@ export function RootClassesPanel({
     });
   }
 
-  const columns = useMemo<Array<GridColDef>>(() => {
+  const columns = useMemo<Array<GridColDef<RootClassRow>>>(() => {
     return [
       {
+        field: "rowNumber",
+        headerName: "#",
+        renderCell: (params: GridRenderCellParams) => {
+          return String(
+            params.api.getRowIndexRelativeToVisibleRows(params.id) + 1,
+          );
+        },
+        sortable: false,
+        width: 72,
+      },
+      {
         field: "name",
-        flex: 1,
-        headerName: "Root class",
+        headerName: "Entity name",
         minWidth: 240,
         renderCell: (params: GridRenderCellParams<{ rootNodeId: string }>) => {
           const rootNodeId = params.row.rootNodeId;
 
           return (
-            <button
-              className="rounded-panel border border-ui-border bg-surface px-2 py-1 text-left text-sm text-text-strong hover:bg-surface-hover"
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                showOnlyRootNode(rootNodeId);
-              }}
-            >
-              {String(params.value ?? "")}
-            </button>
+            <Tooltip title="start new model selection centered on this class">
+              <button
+                className="rounded-panel border border-ui-border bg-surface px-2 py-1 text-left text-sm text-text-strong hover:bg-surface-hover"
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  showOnlyRootNode(rootNodeId);
+                }}
+              >
+                {String(params.value ?? "")}
+              </button>
+            </Tooltip>
           );
         },
       },
       {
-        field: "instanceCount",
-        headerName: "Instance count",
-        minWidth: 140,
-        width: 140,
+        field: "rdfType",
+        headerName: "RDF type",
+        minWidth: 220,
+        renderCell: (params: GridRenderCellParams<string>) => {
+          const rdfType = String(params.value ?? "");
+
+          return rdfType.startsWith("http://") || rdfType.startsWith("https://") ? (
+            <a
+              className="text-sm text-blue-700 underline visited:text-purple-700 hover:text-blue-800"
+              href={rdfType}
+              rel="noreferrer"
+              target="_blank"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
+            >
+              {rdfType}
+            </a>
+          ) : (
+            rdfType
+          );
+        },
       },
       {
         field: "referenceCount",
-        headerName: "Entity references",
+        headerName: "# model references",
         minWidth: 150,
+        renderCell: (params: GridRenderCellParams<RootClassRow, number>) => {
+          const references = params.row.references;
+          const referenceCount = params.value ?? 0;
+          const title =
+            references.length > 0
+              ? `this entity type is referenced from the following fields: ${references.join(", ")}`
+              : "this entity type is not referenced from any entity_reference fields";
+
+          return (
+            <Tooltip title={title}>
+              <span>{String(referenceCount)}</span>
+            </Tooltip>
+          );
+        },
         width: 150,
       },
       {
-        field: "rdfType",
-        flex: 1,
-        headerName: "RDF type",
-        minWidth: 220,
+        field: "instanceCount",
+        headerName: "# instances",
+        minWidth: 140,
+        renderCell: (params: GridRenderCellParams<RootClassRow, number>) => {
+          if (params.value == null) {
+            return "...";
+          }
+
+          const count = params.value;
+
+          return (
+            <Tooltip
+              title={`${String(count)} instances of this type found in the triple store`}
+            >
+              <span>{String(count)}</span>
+            </Tooltip>
+          );
+        },
+        width: 140,
       },
     ];
   }, []);
 
-  const rows = useMemo(() => {
+  const rows = useMemo<Array<RootClassRow>>(() => {
     return pathsWithReferences.map((path) => {
       return {
         id: path.id,
-        instanceCount: instanceCountByPathId[path.id] ?? -1,
+        instanceCount: instanceCountByPathId[path.id],
         name: path.name,
+        references: path.references,
         rdfType: path.rdf_type || "(unknown type)",
         referenceCount: path.references.length,
         rootNodeId: path.id,
@@ -94,6 +162,8 @@ export function RootClassesPanel({
       {pathsWithReferences.length > 0 ? (
         <div className="w-full rounded-panel border border-ui-border">
           <DataGrid
+            autosizeOnMount
+            autosizeOptions={{ expand: false, includeHeaders: true }}
             className="h-[50vh] max-h-[50vh]"
             columns={columns}
             disableColumnFilter
