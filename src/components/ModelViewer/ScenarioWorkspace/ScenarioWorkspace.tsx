@@ -1,21 +1,38 @@
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import SaveIcon from "@mui/icons-material/Save";
-import { IconButton, Tab, Tabs } from "@mui/material";
-import { type Dispatch, type ReactNode, useEffect, useState } from "react";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  IconButton,
+  Tab,
+  Tabs,
+} from "@mui/material";
+import { type Dispatch, type ReactNode, useEffect, useRef, useState } from "react";
 
 import {
   normalizeNodeState,
   normalizeSparqlConfig,
   type Scenario,
   type ScenarioAction,
-} from "../../scenario";
+} from "../../../scenario";
+import type { PathbuilderPath } from "../../../serializer/pathbuilder";
+import { RootClassesPanel } from "./RootClassesPanel";
+import { XmlLoader } from "./XmlLoader";
 
 interface ScenarioWorkspaceProps {
   children: ReactNode;
   dispatchModelState: Dispatch<ScenarioAction>;
+  isXmlLoading: boolean;
+  instanceCountByPathId: Record<string, number>;
+  loadedXmlSource: null | string;
+  pathCount: number;
+  pathsWithReferences: Array<PathbuilderPath>;
+  rootClassCount: number;
   scenario: Scenario;
-  workspaceResetToken: number;
+  xmlLoadError: null | string;
 }
 
 interface StoredScenario {
@@ -147,12 +164,20 @@ function areScenariosEqual(left: Scenario, right: Scenario): boolean {
 export function ScenarioWorkspace({
   children,
   dispatchModelState,
+  isXmlLoading,
+  instanceCountByPathId,
+  loadedXmlSource,
+  pathCount,
+  pathsWithReferences,
+  rootClassCount,
   scenario: scenario,
-  workspaceResetToken,
+  xmlLoadError,
 }: ScenarioWorkspaceProps) {
   const createTabValue = "action:create";
   const [activeTab, setActiveTab] = useState("current");
+  const [isRootPanelExpanded, setIsRootPanelExpanded] = useState(true);
   const [storedScenarios, setStoredScenarios] = useState<Array<StoredScenario>>([]);
+  const lastXmlSource = useRef(scenario.xmlSource);
 
   useEffect(() => {
     setStoredScenarios(readStoredScenarios());
@@ -167,8 +192,19 @@ export function ScenarioWorkspace({
   }, [activeTab, scenario]);
 
   useEffect(() => {
+    if (lastXmlSource.current === scenario.xmlSource) {
+      return;
+    }
+
+    lastXmlSource.current = scenario.xmlSource;
     setActiveTab("current");
-  }, [workspaceResetToken]);
+  }, [scenario.xmlSource]);
+
+  useEffect(() => {
+    if (scenario.nodes.length === 0) {
+      setIsRootPanelExpanded(true);
+    }
+  }, [scenario.nodes.length]);
 
   function onSaveCurrentScenario(): void {
     const name = window.prompt("Enter a name for the current model state:");
@@ -314,7 +350,40 @@ export function ScenarioWorkspace({
           />
         </Tabs>
       </div>
-      <div className="p-4">{children}</div>
+      <div className="flex flex-col gap-4 p-4">
+        <Accordion
+          disableGutters
+          expanded={scenario.nodes.length === 0 ? true : isRootPanelExpanded}
+          onChange={(_event, expanded) => {
+            if (scenario.nodes.length === 0) {
+              return;
+            }
+
+            setIsRootPanelExpanded(expanded);
+          }}
+        >
+          <AccordionSummary className="px-0" expandIcon={<ExpandMoreIcon />}>
+            <XmlLoader
+              currentXmlSource={scenario.xmlSource}
+              dispatchModelState={dispatchModelState}
+              isLoading={isXmlLoading}
+              loadError={xmlLoadError}
+              loadedSource={loadedXmlSource}
+              pathCount={pathCount}
+              rootClassCount={rootClassCount}
+            />
+          </AccordionSummary>
+          <AccordionDetails className="px-0 pt-0">
+            <RootClassesPanel
+              dispatchModelState={dispatchModelState}
+              instanceCountByPathId={instanceCountByPathId}
+              pathsWithReferences={pathsWithReferences}
+              xmlLoadError={xmlLoadError}
+            />
+          </AccordionDetails>
+        </Accordion>
+        {children}
+      </div>
     </div>
   );
 }

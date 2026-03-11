@@ -177,7 +177,7 @@ export function SparqlResults({
   }
 
   return (
-    <div aria-label="SPARQL results" className="panel w-full p-4">
+    <div aria-label="SPARQL results" className="panel max-h-screen w-full p-4">
       <div className="flex items-center justify-between gap-3">
         {hasSuccessfulResult ? (
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -211,7 +211,7 @@ export function SparqlResults({
         </ToggleButtonGroup>
       </div>
       {error != null ? (
-        <pre className="app-code-surface mt-2 overflow-auto rounded-panel border border-ui-border p-3 text-sm">
+        <pre className="app-code-surface mt-2 max-h-[calc(100vh-14rem)] min-w-0 overflow-auto whitespace-pre-wrap break-words rounded-panel border border-ui-border p-3 text-sm">
           {error}
         </pre>
       ) : null}
@@ -222,7 +222,7 @@ export function SparqlResults({
       ) : null}
       {error == null && result != null && viewMode === "raw" ? (
         <div
-          className="app-code-surface mt-2 overflow-auto rounded-panel border border-ui-border p-3 text-sm [&_pre]:m-0 [&_pre]:!bg-transparent [&_pre]:p-0"
+          className="app-code-surface mt-2 max-h-[calc(100vh-14rem)] min-w-0 overflow-auto rounded-panel border border-ui-border p-3 text-sm [&_pre]:m-0 [&_pre]:max-w-full [&_pre]:!bg-transparent [&_pre]:p-0 [&_pre]:whitespace-pre-wrap [&_code]:break-words"
           dangerouslySetInnerHTML={{ __html: highlightedHtml }}
         />
       ) : null}

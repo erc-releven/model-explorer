@@ -39,7 +39,7 @@ export function GraphViewer({
   return (
     <div
       aria-label="Graph viewer"
-      className="panel min-h-panel flex-1 overflow-hidden"
+      className="panel relative min-h-panel flex-1 overflow-hidden"
     >
       <ReactFlowProvider>
         <GraphCanvas
@@ -48,6 +48,13 @@ export function GraphViewer({
           rootNodeId={rootNodeId}
         />
       </ReactFlowProvider>
+      {scenario.nodes.length === 0 ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6 text-center">
+          <div className="rounded-panel border border-ui-border bg-surface-alt px-4 py-3 text-sm text-text-strong shadow-sm">
+            select a root model to begin exploring the model
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
