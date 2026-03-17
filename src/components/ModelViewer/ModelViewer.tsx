@@ -1,24 +1,12 @@
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { Accordion, AccordionDetails, AccordionSummary } from "@mui/material";
-import {
-  type Dispatch,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type Dispatch, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Scenario, ScenarioAction } from "../../scenario";
-import {
-	parsePathbuilderXml,
-	type Pathbuilder,
-} from "../../serializer/pathbuilder";
+import { parsePathbuilderXml, type Pathbuilder } from "../../serializer/pathbuilder";
 import { serializeModelStateToPydantic } from "../../serializer/pydantic";
-import {
-	getSelectedVariableNames,
-	serializeScenarioToSparql,
-} from "../../serializer/sparql";
+import { getSelectedVariableNames, serializeScenarioToSparql } from "../../serializer/sparql";
+import { executeSparqlQuery } from "../../serializer/sparql-execution";
 import { fetchCountForNodePath } from "../../serializer/sparql-query";
 import { resolveXmlSourceForFetch } from "../../utils/resolve-xml-source";
 import { GraphViewer } from "./GraphViewer";
@@ -31,10 +19,7 @@ interface ModelViewerProps {
   scenario: Scenario;
 }
 
-export function ModelViewer({
-  dispatchModelState,
-  scenario,
-}: ModelViewerProps) {
+export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) {
   const [pathbuilder, setPathbuilder] = useState<null | Pathbuilder>(null);
   const [xmlLoadError, setXmlLoadError] = useState<null | string>(null);
   const [isXmlLoading, setIsXmlLoading] = useState(false);
@@ -45,23 +30,16 @@ export function ModelViewer({
     () => allPaths.filter((path) => path.references.length > 0),
     [allPaths],
   );
-  const [instanceCountByPathId, setInstanceCountByPathId] = useState<
-    Record<string, number>
-  >({});
+  const [instanceCountByPathId, setInstanceCountByPathId] = useState<Record<string, number>>({});
   const [sparqlResult, setSparqlResult] = useState<null | string>(null);
   const [sparqlError, setSparqlError] = useState<null | string>(null);
   const [isSparqlLoading, setIsSparqlLoading] = useState(false);
   const [sparqlDurationMs, setSparqlDurationMs] = useState<null | number>(null);
-  const [sparqlPayloadBytes, setSparqlPayloadBytes] = useState<null | number>(
-    null,
-  );
+  const [sparqlPayloadBytes, setSparqlPayloadBytes] = useState<null | number>(null);
   const resultsSummaryRef = useRef<HTMLDivElement | null>(null);
   const sparqlAbortController = useRef<AbortController | null>(null);
   const generatedQuery = serializeScenarioToSparql(scenario, pathbuilder);
-  const generatedPydanticModel = serializeModelStateToPydantic(
-    scenario,
-    pathbuilder,
-  );
+  const generatedPydanticModel = serializeModelStateToPydantic(scenario, pathbuilder);
   const selectedVariables = getSelectedVariableNames(scenario, pathbuilder);
 
   useEffect(() => {
@@ -89,9 +67,7 @@ export function ModelViewer({
         const response = await fetch(source, { signal: controller.signal });
 
         if (!response.ok) {
-          throw new Error(
-            `Failed to load XML file (${String(response.status)}).`,
-          );
+          throw new Error(`Failed to load XML file (${String(response.status)}).`);
         }
 
         const xmlContent = await response.text();
@@ -110,9 +86,7 @@ export function ModelViewer({
         }
 
         setPathbuilder(null);
-        setXmlLoadError(
-          error instanceof Error ? error.message : "Failed to load XML file.",
-        );
+        setXmlLoadError(error instanceof Error ? error.message : "Failed to load XML file.");
       } finally {
         if (!isCancelled) {
           setIsXmlLoading(false);
@@ -133,9 +107,7 @@ export function ModelViewer({
 
     setInstanceCountByPathId((previousState) => {
       const nextState = Object.fromEntries(
-        Object.entries(previousState).filter(([pathId]) =>
-          visiblePathIds.has(pathId),
-        ),
+        Object.entries(previousState).filter(([pathId]) => visiblePathIds.has(pathId)),
       );
 
       return Object.keys(nextState).length === Object.keys(previousState).length
@@ -187,97 +159,69 @@ export function ModelViewer({
     sparqlAbortController.current?.abort();
   }, []);
 
-  const onExecuteQuery = useCallback(
-    async (endpoint: string, query: string) => {
-      setIsResultsExpanded(true);
-      requestAnimationFrame(() => {
-        resultsSummaryRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-        resultsSummaryRef.current?.focus();
+  const onExecuteQuery = useCallback(async (endpoint: string, query: string) => {
+    setIsResultsExpanded(true);
+    requestAnimationFrame(() => {
+      resultsSummaryRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
       });
-      const normalizedEndpoint = endpoint.trim();
-      const normalizedQuery = query.trim();
+      resultsSummaryRef.current?.focus();
+    });
+    const normalizedEndpoint = endpoint.trim();
+    const normalizedQuery = query.trim();
 
-      if (normalizedEndpoint.length === 0) {
-        setSparqlError("Please provide an endpoint.");
-        setSparqlResult(null);
-        return;
-      }
+    if (normalizedEndpoint.length === 0) {
+      setSparqlError("Please provide an endpoint.");
+      setSparqlResult(null);
+      return;
+    }
 
-      if (normalizedQuery.length === 0) {
-        setSparqlError("Please provide a SPARQL query.");
-        setSparqlResult(null);
-        return;
-      }
+    if (normalizedQuery.length === 0) {
+      setSparqlError("Please provide a SPARQL query.");
+      setSparqlResult(null);
+      return;
+    }
 
-      sparqlAbortController.current?.abort();
-      const controller = new AbortController();
-      sparqlAbortController.current = controller;
-      const startedAt = performance.now();
+    sparqlAbortController.current?.abort();
+    const controller = new AbortController();
+    sparqlAbortController.current = controller;
 
-      setIsSparqlLoading(true);
+    setIsSparqlLoading(true);
+    setSparqlError(null);
+    setSparqlDurationMs(null);
+    setSparqlPayloadBytes(null);
+
+    try {
+      const executionResult = await executeSparqlQuery(
+        normalizedEndpoint,
+        normalizedQuery,
+        controller.signal,
+      );
+
+      setSparqlResult(executionResult.result);
       setSparqlError(null);
-      setSparqlDurationMs(null);
-      setSparqlPayloadBytes(null);
-
-      try {
-        const response = await fetch(normalizedEndpoint, {
-          body: new URLSearchParams({ query: normalizedQuery }).toString(),
-          headers: {
-            Accept:
-              "application/sparql-results+json, application/json, text/plain;q=0.8",
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-          },
-          method: "POST",
-          signal: controller.signal,
-        });
-
-        const responseText = await response.text();
-
-        if (!response.ok) {
-          throw new Error(
-            `Query failed (${String(response.status)}): ${responseText}`,
-          );
-        }
-
-        const contentType = response.headers.get("content-type") ?? "";
-        const payloadSize = new TextEncoder().encode(responseText).length;
-        const formattedResult =
-          contentType.includes("json") && responseText.length > 0
-            ? JSON.stringify(JSON.parse(responseText), null, 2)
-            : responseText;
-
-        setSparqlResult(formattedResult);
-        setSparqlError(null);
-        setSparqlDurationMs(performance.now() - startedAt);
-        setSparqlPayloadBytes(payloadSize);
-      } catch (error: unknown) {
-        if (controller.signal.aborted) {
-          setSparqlError("Query cancelled.");
-          setSparqlResult(null);
-          setSparqlDurationMs(null);
-          setSparqlPayloadBytes(null);
-          return;
-        }
-
-        setSparqlError(
-          error instanceof Error
-            ? error.message
-            : "SPARQL query execution failed.",
-        );
+      setSparqlDurationMs(executionResult.durationMs);
+      setSparqlPayloadBytes(executionResult.payloadBytes);
+    } catch (error: unknown) {
+      if (controller.signal.aborted) {
+        setSparqlError("Query cancelled.");
         setSparqlResult(null);
         setSparqlDurationMs(null);
         setSparqlPayloadBytes(null);
-      } finally {
-        if (sparqlAbortController.current === controller) {
-          setIsSparqlLoading(false);
-        }
+        return;
       }
-    },
-    [],
-  );
+
+      setSparqlError(error instanceof Error ? error.message : "SPARQL query execution failed.");
+      setSparqlResult(null);
+      setSparqlDurationMs(null);
+      setSparqlPayloadBytes(null);
+    } finally {
+      if (sparqlAbortController.current === controller) {
+        setIsSparqlLoading(false);
+      }
+    }
+  }, []);
 
   return (
     <div
@@ -286,9 +230,7 @@ export function ModelViewer({
     >
       <Accordion defaultExpanded disableGutters>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <span className="text-sm font-semibold text-text-strong">
-            Scenario Workspace
-          </span>
+          <span className="text-sm font-semibold text-text-strong">Scenario Workspace</span>
         </AccordionSummary>
         <AccordionDetails className="p-0">
           <ScenarioWorkspace
@@ -333,13 +275,8 @@ export function ModelViewer({
           setIsResultsExpanded(expanded);
         }}
       >
-        <AccordionSummary
-          expandIcon={<ExpandMoreIcon />}
-          ref={resultsSummaryRef}
-        >
-          <span className="text-sm font-semibold text-text-strong">
-            SPARQL Results
-          </span>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />} ref={resultsSummaryRef}>
+          <span className="text-sm font-semibold text-text-strong">SPARQL Results</span>
         </AccordionSummary>
         <AccordionDetails className="p-0">
           <SparqlResults

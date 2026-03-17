@@ -509,7 +509,10 @@ const mixedCountSelectionsWithRoot = [
 
 const serializerScenarios = [
   {
-    selections: ["g_person", "g_person > p_display_name"] as const satisfies Array<ScenarioSelection>,
+    selections: [
+      "g_person",
+      "g_person > p_display_name",
+    ] as const satisfies Array<ScenarioSelection>,
     title: "keeps selected variables grounded in one contiguous WHERE graph",
   },
   {
@@ -563,9 +566,7 @@ describe("serializeScenarioToSparql", () => {
       mixedCountSelectionsWithRoot,
     );
     const parser = new SparqlParser();
-    const baseParsedQuery = parser.parse(
-      serializeScenarioToSparql(baseScenario, pathbuilder),
-    ) as {
+    const baseParsedQuery = parser.parse(serializeScenarioToSparql(baseScenario, pathbuilder)) as {
       variables?: Array<unknown>;
       where?: Array<unknown>;
     };
@@ -581,8 +582,11 @@ describe("serializeScenarioToSparql", () => {
       return !baseSelectVariables.has(variable);
     });
 
-    expect(Array.from(baseSelectVariables).filter((variable) => !rootSelectedSelectVariables.has(variable)))
-      .toEqual([]);
+    expect(
+      Array.from(baseSelectVariables).filter(
+        (variable) => !rootSelectedSelectVariables.has(variable),
+      ),
+    ).toEqual([]);
     expect(additionalVariables).toHaveLength(1);
     expect(omitTopLevelVariables(rootSelectedParsedQuery)).toEqual(
       omitTopLevelVariables(baseParsedQuery),

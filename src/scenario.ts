@@ -27,6 +27,8 @@ export interface Scenario {
   xmlSource: string;
 }
 
+export const defaultXmlSource = typeof __DEFAULT_XML__ === "string" ? __DEFAULT_XML__ : "";
+
 export const defaultSparqlConfig: SparqlConfigState = {
   countDistinct: false,
   disregardTypesOfNonRootNodes: false,
@@ -42,7 +44,7 @@ export const defaultSparqlConfig: SparqlConfigState = {
 export const defaultScenario: Scenario = {
   nodes: [],
   sparql: defaultSparqlConfig,
-  xmlSource: __DEFAULT_XML__,
+  xmlSource: defaultXmlSource,
 };
 
 export type ScenarioAction =

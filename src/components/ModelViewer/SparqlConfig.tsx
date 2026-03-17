@@ -233,9 +233,7 @@ export function SparqlConfig({
             setIsConfigExpanded(expanded);
           }}
         >
-          <AccordionSummary
-            expandIcon={isSingleColumnLayout ? <ExpandMoreIcon /> : undefined}
-          >
+          <AccordionSummary expandIcon={isSingleColumnLayout ? <ExpandMoreIcon /> : undefined}>
             <span className="text-sm font-semibold text-text-strong">SPARQL Configuration</span>
           </AccordionSummary>
           <AccordionDetails className="px-0 pb-0">
@@ -357,8 +355,7 @@ export function SparqlConfig({
                             dispatchModelState({
                               payload: {
                                 sparql: {
-                                  omitPathPrefixesUnlessExplicitlySelected:
-                                    event.target.checked,
+                                  omitPathPrefixesUnlessExplicitlySelected: event.target.checked,
                                 },
                               },
                               type: "state/setSparqlConfig",
@@ -552,9 +549,7 @@ export function SparqlConfig({
                     copy to clipboard
                   </Button>
                 </div>
-                <div
-                  className={activeTab === "sparql" ? "block" : "hidden"}
-                >
+                <div className={activeTab === "sparql" ? "block" : "hidden"}>
                   <div className="relative min-h-[18rem] overflow-hidden rounded-panel border border-ui-border">
                     <div
                       ref={highlightedCodeRef}
@@ -575,9 +570,7 @@ export function SparqlConfig({
                     />
                   </div>
                 </div>
-                <div
-                  className={activeTab === "pydantic" ? "block" : "hidden"}
-                >
+                <div className={activeTab === "pydantic" ? "block" : "hidden"}>
                   <div className="relative min-h-[18rem] overflow-hidden rounded-panel border border-ui-border">
                     <div
                       ref={pydanticHighlightedCodeRef}

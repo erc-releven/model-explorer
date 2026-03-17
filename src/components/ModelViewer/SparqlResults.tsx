@@ -1,13 +1,5 @@
-import {
-  CircularProgress,
-  ToggleButton,
-  ToggleButtonGroup,
-} from "@mui/material";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRenderCellParams,
-} from "@mui/x-data-grid";
+import { CircularProgress, ToggleButton, ToggleButtonGroup } from "@mui/material";
+import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import { useEffect, useMemo, useState } from "react";
 
 import { highlightCodeToHtml } from "./highlight";
@@ -36,9 +28,7 @@ interface SparqlResultsProps {
 
 const xsdIntegerDatatype = "http://www.w3.org/2001/XMLSchema#integer";
 
-function getSortableCellValue(
-  cell: SparqlBindingValue | undefined,
-): number | string {
+function getSortableCellValue(cell: SparqlBindingValue | undefined): number | string {
   if (cell == null) {
     return "";
   }
@@ -136,51 +126,45 @@ export function SparqlResults({
         width: 72,
       },
       ...vars.map((variable): GridColDef => {
-      return {
-        field: variable,
-        minWidth: 180,
-        renderCell: (params: GridRenderCellParams) => {
-          const row = params.row as Record<
-            string,
-            SparqlBindingValue | undefined
-          >;
-          const cell = row[variable];
+        return {
+          field: variable,
+          minWidth: 180,
+          renderCell: (params: GridRenderCellParams) => {
+            const row = params.row as Record<string, SparqlBindingValue | undefined>;
+            const cell = row[variable];
 
-          if (cell == null) {
-            return "";
-          }
+            if (cell == null) {
+              return "";
+            }
 
-          if (cell.type === "uri") {
-            const targetUrl = `https://releven-graphdb.acdh-dev.oeaw.ac.at/resource?uri=${encodeURIComponent(cell.value)}`;
+            if (cell.type === "uri") {
+              const targetUrl = `https://releven-graphdb.acdh-dev.oeaw.ac.at/resource?uri=${encodeURIComponent(cell.value)}`;
 
-            return (
-              <a href={targetUrl} rel="noreferrer" target="_blank">
-                {cell.value}
-              </a>
-            );
-          }
+              return (
+                <a href={targetUrl} rel="noreferrer" target="_blank">
+                  {cell.value}
+                </a>
+              );
+            }
 
-          return cell.value;
-        },
-        sortable: true,
-        sortComparator: (left, right) => {
-          if (typeof left === "number" && typeof right === "number") {
-            return left - right;
-          }
+            return cell.value;
+          },
+          sortable: true,
+          sortComparator: (left, right) => {
+            if (typeof left === "number" && typeof right === "number") {
+              return left - right;
+            }
 
-          return String(left).localeCompare(String(right), undefined, {
-            numeric: true,
-          });
-        },
-        valueGetter: (_value, row) => {
-          const typedRow = row as Record<
-            string,
-            SparqlBindingValue | undefined
-          >;
-          const cell = typedRow[variable];
-          return getSortableCellValue(cell);
-        },
-      };
+            return String(left).localeCompare(String(right), undefined, {
+              numeric: true,
+            });
+          },
+          valueGetter: (_value, row) => {
+            const typedRow = row as Record<string, SparqlBindingValue | undefined>;
+            const cell = typedRow[variable];
+            return getSortableCellValue(cell);
+          },
+        };
       }),
     ];
   }, [parsedResult]);
@@ -201,10 +185,7 @@ export function SparqlResults({
 
   if (isLoading) {
     return (
-      <div
-        aria-label="SPARQL results"
-        className="panel h-screen max-h-screen w-full p-4"
-      >
+      <div aria-label="SPARQL results" className="panel h-screen max-h-screen w-full p-4">
         <div className="flex items-center justify-center gap-2">
           <CircularProgress color="secondary" size={24} />
           <p className="mb-0 text-sm">{`Executing query... ${String(elapsedSeconds)}s`}</p>
@@ -225,8 +206,7 @@ export function SparqlResults({
               <strong>Time:</strong> {queryDurationMs?.toFixed(0) ?? "0"} ms
             </span>
             <span className="rounded-panel border border-ui-border bg-surface-alt px-2 py-1 text-text-strong">
-              <strong>Payload:</strong>{" "}
-              {payloadSizeBytes?.toLocaleString() ?? "0"} bytes
+              <strong>Payload:</strong> {payloadSizeBytes?.toLocaleString() ?? "0"} bytes
             </span>
           </div>
         ) : (
@@ -265,9 +245,7 @@ export function SparqlResults({
       ) : null}
       {error == null && result != null && viewMode === "table" ? (
         parsedResult == null ? (
-          <p className="mb-0 mt-2 text-sm text-muted">
-            Result is not valid SPARQL JSON.
-          </p>
+          <p className="mb-0 mt-2 text-sm text-muted">Result is not valid SPARQL JSON.</p>
         ) : (
           <div className="mt-2 w-full rounded-panel border border-ui-border">
             <DataGrid

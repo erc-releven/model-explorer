@@ -137,9 +137,7 @@ function parsePathbuilderPath(pathElement: Element): PathbuilderPath {
   };
 }
 
-export function parsePathbuilderXml(xmlContent: string): Pathbuilder {
-  const parser = new DOMParser();
-  const xmlDocument = parser.parseFromString(xmlContent, "application/xml");
+export function parsePathbuilderDocument(xmlDocument: Document): Pathbuilder {
   const parserError = xmlDocument.querySelector("parsererror");
 
   if (parserError != null) {
@@ -165,10 +163,7 @@ export function parsePathbuilderXml(xmlContent: string): Pathbuilder {
 
       if (parentPath != null) {
         parentPath.children[path.id] = path;
-        path.first_own_statement = getCommonPrefixLength(
-          path.path_array,
-          parentPath.path_array,
-        );
+        path.first_own_statement = getCommonPrefixLength(path.path_array, parentPath.path_array);
       }
     }
     if (path.entity_reference) {
@@ -184,4 +179,11 @@ export function parsePathbuilderXml(xmlContent: string): Pathbuilder {
   }
 
   return new Pathbuilder(pathsById);
+}
+
+export function parsePathbuilderXml(xmlContent: string): Pathbuilder {
+  const parser = new DOMParser();
+  const xmlDocument = parser.parseFromString(xmlContent, "application/xml");
+
+  return parsePathbuilderDocument(xmlDocument);
 }

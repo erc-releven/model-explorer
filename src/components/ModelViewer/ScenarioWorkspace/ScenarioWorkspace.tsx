@@ -12,12 +12,8 @@ import {
 } from "@mui/material";
 import { type Dispatch, type ReactNode, useEffect, useRef, useState } from "react";
 
-import {
-  normalizeNodeState,
-  normalizeSparqlConfig,
-  type Scenario,
-  type ScenarioAction,
-} from "../../../scenario";
+import type { Scenario, ScenarioAction } from "../../../scenario";
+import { parseNamedScenario, parseScenario } from "../../../scenario-io";
 import type { PathbuilderPath } from "../../../serializer/pathbuilder";
 import { RootClassesPanel } from "./RootClassesPanel";
 import { XmlLoader } from "./XmlLoader";
@@ -43,57 +39,17 @@ interface StoredScenario {
 const localStorageKey = "releven:model-states";
 const currentLocalStorageKey = "releven:model-state-current";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value != null;
-}
+function parseStoredScenario(value: unknown): null | StoredScenario {
+  const parsedScenario = parseNamedScenario(value);
 
-function isStringArray(value: unknown): value is Array<string> {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
-}
-
-function parseScenario(value: unknown): null | Scenario {
-  if (!isRecord(value)) {
+  if (parsedScenario?.name == null) {
     return null;
   }
-
-  const nodes = value.nodes;
-
-  if (!Array.isArray(nodes) || nodes.some((node) => !isRecord(node) || !isStringArray(node.id))) {
-    return null;
-  }
-
-  const normalizedNodes = nodes.map((node) => {
-    const nodeRecord = node as Record<string, unknown>;
-
-    return normalizeNodeState({
-      id: nodeRecord.id as Array<string>,
-      selected: nodeRecord.selected as Scenario["nodes"][number]["selected"],
-    });
-  });
-  const normalizedSparqlConfig = normalizeSparqlConfig(
-    isRecord(value.sparql) ? value.sparql : undefined,
-  );
-  const normalizedXmlSource = typeof value.xmlSource === "string" ? value.xmlSource : "";
 
   return {
-    nodes: normalizedNodes,
-    sparql: normalizedSparqlConfig,
-    xmlSource: normalizedXmlSource,
+    name: parsedScenario.name,
+    scenario: parsedScenario.scenario,
   };
-}
-
-function parseStoredScenario(value: unknown): null | StoredScenario {
-  if (!isRecord(value) || typeof value.name !== "string") {
-    return null;
-  }
-
-  const parsedScenario = parseScenario(value.scenario);
-
-  if (parsedScenario == null) {
-    return null;
-  }
-
-  return { name: value.name, scenario: parsedScenario };
 }
 
 function writeStoredScenarios(states: Array<StoredScenario>): void {

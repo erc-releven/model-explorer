@@ -1,9 +1,5 @@
 import { Tooltip } from "@mui/material";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRenderCellParams,
-} from "@mui/x-data-grid";
+import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import { type Dispatch, useMemo } from "react";
 
 import { createDefaultNodeState, type ScenarioAction } from "../../../scenario";
@@ -45,9 +41,7 @@ export function RootClassesPanel({
         field: "rowNumber",
         headerName: "#",
         renderCell: (params: GridRenderCellParams) => {
-          return String(
-            params.api.getRowIndexRelativeToVisibleRows(params.id) + 1,
-          );
+          return String(params.api.getRowIndexRelativeToVisibleRows(params.id) + 1);
         },
         sortable: false,
         width: 72,
@@ -56,7 +50,7 @@ export function RootClassesPanel({
         field: "name",
         headerName: "Entity name",
         minWidth: 240,
-        renderCell: (params: GridRenderCellParams<{ rootNodeId: string }>) => {
+        renderCell: (params: GridRenderCellParams<RootClassRow, string>) => {
           const rootNodeId = params.row.rootNodeId;
 
           return (
@@ -69,7 +63,7 @@ export function RootClassesPanel({
                   showOnlyRootNode(rootNodeId);
                 }}
               >
-                {String(params.value ?? "")}
+                {params.value ?? ""}
               </button>
             </Tooltip>
           );
@@ -79,8 +73,8 @@ export function RootClassesPanel({
         field: "rdfType",
         headerName: "RDF type",
         minWidth: 220,
-        renderCell: (params: GridRenderCellParams<string>) => {
-          const rdfType = String(params.value ?? "");
+        renderCell: (params: GridRenderCellParams<RootClassRow, string>) => {
+          const rdfType = params.value ?? "";
 
           return rdfType.startsWith("http://") || rdfType.startsWith("https://") ? (
             <a
@@ -131,9 +125,7 @@ export function RootClassesPanel({
           const count = params.value;
 
           return (
-            <Tooltip
-              title={`${String(count)} instances of this type found in the triple store`}
-            >
+            <Tooltip title={`${String(count)} instances of this type found in the triple store`}>
               <span>{String(count)}</span>
             </Tooltip>
           );

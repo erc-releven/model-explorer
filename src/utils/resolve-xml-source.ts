@@ -13,7 +13,7 @@ export function resolveXmlSourceForFetch(source: string): string {
     // Continue for app-relative paths.
   }
 
-  const basePath = import.meta.env.BASE_URL ?? "/";
+  const basePath = import.meta.env.BASE_URL;
   const normalizedBasePath = basePath.endsWith("/") ? basePath : `${basePath}/`;
   const normalizedSource = trimmedSource.replace(/^\/+/, "");
 

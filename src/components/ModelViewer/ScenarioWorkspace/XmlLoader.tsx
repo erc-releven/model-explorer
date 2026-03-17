@@ -34,10 +34,7 @@ interface XmlLoaderProps {
   rootClassCount: number;
 }
 
-const xmlShortcuts = [
-  "releven_expanded_20251216.xml",
-  "releven_inferred_20260219.xml",
-] as const;
+const xmlShortcuts = ["releven_expanded_20251216.xml", "releven_inferred_20260219.xml"] as const;
 
 export function XmlLoader({
   currentXmlSource,
@@ -162,12 +159,7 @@ export function XmlLoader({
             >
               Load Pathbuilder File
             </Typography>
-            <Button
-              component="label"
-              disabled={isLoading}
-              size="small"
-              variant="contained"
-            >
+            <Button component="label" disabled={isLoading} size="small" variant="contained">
               Upload XML
               <input
                 accept=".xml,text/xml,application/xml"

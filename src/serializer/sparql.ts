@@ -563,7 +563,9 @@ function compileAstToSparql(
   }
 
   function getImplicitRootNodeIdForCount(countNodeId: string): undefined | string {
-    const otherSelectedNodeIds = selectedNodeIdsInWhereOrder.filter((nodeId) => nodeId !== countNodeId);
+    const otherSelectedNodeIds = selectedNodeIdsInWhereOrder.filter(
+      (nodeId) => nodeId !== countNodeId,
+    );
 
     if (otherSelectedNodeIds.length === 0) {
       return countNodeId;
@@ -731,7 +733,8 @@ function compileAstToSparql(
         });
         const indent = /^\s*/.exec(originalLines[0]!)?.[0] ?? "";
         const anchorVariable = wrapper.anchorVariable;
-        const optionalPrefix = shouldIncludeZeroCountResults && wrapper.hasAnchor ? "OPTIONAL " : "";
+        const optionalPrefix =
+          shouldIncludeZeroCountResults && wrapper.hasAnchor ? "OPTIONAL " : "";
 
         whereLines.push(
           wrapper.hasAnchor

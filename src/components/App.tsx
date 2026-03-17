@@ -1,16 +1,9 @@
-import {
-  createTheme,
-  CssBaseline,
-  ThemeProvider,
-} from "@mui/material";
+import { createTheme, CssBaseline, ThemeProvider } from "@mui/material";
 import type {} from "@mui/x-data-grid/themeAugmentation";
 import { useEffect, useMemo, useRef } from "react";
 
 import { useScenario } from "../scenario";
-import {
-  parseModelStateFromSearch,
-  serializeModelStateToSearch,
-} from "../serializer/url";
+import { parseModelStateFromSearch, serializeModelStateToSearch } from "../serializer/url";
 import { ModelViewer } from "./ModelViewer/ModelViewer";
 
 export function App() {
@@ -50,10 +43,7 @@ export function App() {
       <CssBaseline />
       <div className="mx-auto flex min-h-full w-full max-w-screen-3xl flex-col gap-4 p-4">
         <div className="min-h-0 flex-1">
-          <ModelViewer
-            dispatchModelState={dispatchModelState}
-            scenario={modelState}
-          />
+          <ModelViewer dispatchModelState={dispatchModelState} scenario={modelState} />
         </div>
       </div>
     </ThemeProvider>
