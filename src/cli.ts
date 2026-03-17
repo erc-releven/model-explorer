@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
-import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import { array, command, flag, multioption, oneOf, option, run, string } from "cmd-ts";
+import { array, command, flag, multioption, oneOf, option, optional, run, string } from "cmd-ts";
 import { JSDOM } from "jsdom";
 
 import { defaultSparqlConfig, type NodeState } from "./scenario";
@@ -24,14 +24,12 @@ const deployedUiUrl = "https://erc-releven.github.io/model-explorer/";
 interface LoadedScenario {
   displayName: string;
   scenario: NamedScenario["scenario"];
-  sourceLabel: string;
 }
 
 interface ScenarioReport {
   name: string;
   pydantic: string;
   queryExecution?: SparqlExecutionResult;
-  scenarioPath: string;
   scenarioUrl?: string;
   sparql: string;
 }
@@ -70,7 +68,6 @@ async function loadScenarioFile(filePath: string): Promise<LoadedScenario> {
   return {
     displayName: deriveScenarioName(resolvedFilePath, parsedScenario),
     scenario: parsedScenario.scenario,
-    sourceLabel: resolvedFilePath,
   };
 }
 
@@ -113,7 +110,6 @@ function createRootTypeScenarios(pathbuilder: Pathbuilder, xmlPath: string): Arr
           sparql: defaultSparqlConfig,
           xmlSource: xmlPath,
         },
-        sourceLabel: `generated from root type ${rootPath.id}`,
       };
     });
 }
@@ -180,6 +176,49 @@ function formatTextReport(
   return lines.join("\n");
 }
 
+function slugifyScenarioName(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug.length > 0 ? slug : "scenario";
+}
+
+function createScenarioFileNames(reports: Array<ScenarioReport>): Array<string> {
+  const seenCountsBySlug = new Map<string, number>();
+
+  return reports.map((report) => {
+    const baseSlug = slugifyScenarioName(report.name);
+    const seenCount = seenCountsBySlug.get(baseSlug) ?? 0;
+
+    seenCountsBySlug.set(baseSlug, seenCount + 1);
+
+    return seenCount === 0 ? baseSlug : `${baseSlug}-${String(seenCount + 1)}`;
+  });
+}
+
+async function writeScenarioFiles(
+  reports: Array<ScenarioReport>,
+  outputDirectory: string,
+): Promise<void> {
+  await mkdir(outputDirectory, { recursive: true });
+
+  const scenarioFileNames = createScenarioFileNames(reports);
+
+  await Promise.all(
+    reports.map(async (report, index) => {
+      const fileName = scenarioFileNames[index]!;
+      const queryPath = join(outputDirectory, `${fileName}.rq`);
+      const modelPath = join(outputDirectory, `${fileName}.py`);
+
+      await writeFile(queryPath, `${formatTextReport(report, null, false)}\n`, "utf8");
+      await writeFile(modelPath, `${report.pydantic}\n`, "utf8");
+    }),
+  );
+}
+
 const cli = command({
   name: "releven-cli",
   description:
@@ -195,11 +234,16 @@ const cli = command({
       long: "execute",
       description: "Execute the generated SPARQL query for each scenario.",
     }),
-    format: option({
-      long: "format",
-      defaultValue: () => "text" as const,
-      description: "Output format for the generated report.",
-      type: oneOf(["json", "text"] as const),
+    output: option({
+      long: "output",
+      defaultValue: () => "stdout" as const,
+      description: "Write output to stdout or to separate query/model files.",
+      type: oneOf(["files", "stdout"] as const),
+    }),
+    outputDir: option({
+      long: "output-dir",
+      description: "Directory used when --output files is selected.",
+      type: optional(string),
     }),
     scenario: multioption({
       long: "scenario",
@@ -215,7 +259,8 @@ const cli = command({
     }),
     xml: option({
       long: "xml",
-      description: "Path to the pathbuilder XML file used for serialization.",
+      description:
+        "Path to the pathbuilder XML file that forms the basis of query and model serialization.",
       type: string,
     }),
   },
@@ -226,6 +271,10 @@ const cli = command({
 
     if (!args.rootTypes && args.scenario.length === 0) {
       throw new Error("Provide at least one --scenario file or pass --root-types.");
+    }
+
+    if (args.output === "files" && args.outputDir == null) {
+      throw new Error("Provide --output-dir when using --output files.");
     }
 
     const resolvedXmlPath = resolve(args.xml);
@@ -245,8 +294,8 @@ const cli = command({
         ...loadedScenario.scenario,
         xmlSource: resolvedXmlPath,
       };
-      const sparql = serializeScenarioToSparql(scenario, pathbuilder);
       const pydantic = serializeModelStateToPydantic(scenario, pathbuilder);
+      const sparql = serializeScenarioToSparql(scenario, pathbuilder);
       const queryExecution = args.execute
         ? await executeSparqlQuery(args.endpoint, sparql)
         : undefined;
@@ -255,23 +304,17 @@ const cli = command({
         name: loadedScenario.displayName,
         pydantic,
         queryExecution,
-        scenarioPath: loadedScenario.sourceLabel,
         scenarioUrl: createScenarioUrl(scenario, resolvedXmlPath),
         sparql,
       });
     }
 
-    if (args.format === "json") {
+    if (args.output === "files") {
+      const resolvedOutputDirectory = resolve(args.outputDir!);
+
+      await writeScenarioFiles(reports, resolvedOutputDirectory);
       process.stdout.write(
-        `${JSON.stringify(
-          {
-            endpoint: args.execute ? args.endpoint : null,
-            reports,
-            xmlPath: resolvedXmlPath,
-          },
-          null,
-          2,
-        )}\n`,
+        `Wrote ${String(reports.length)} scenario file set(s) to ${resolvedOutputDirectory}\n`,
       );
       return;
     }
