@@ -28,6 +28,45 @@ interface SparqlResultsProps {
 
 const xsdIntegerDatatype = "http://www.w3.org/2001/XMLSchema#integer";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value != null;
+}
+
+function extractFetchErrorMessage(error: string): string {
+  const bodyStartIndex = error.indexOf(": ");
+
+  if (bodyStartIndex === -1) {
+    return error;
+  }
+
+  const responseText = error.slice(bodyStartIndex + 2).trim();
+
+  if (responseText.length === 0) {
+    return error;
+  }
+
+  try {
+    const parsed = JSON.parse(responseText) as unknown;
+
+    if (!isRecord(parsed)) {
+      return responseText;
+    }
+
+    const message =
+      typeof parsed.message === "string"
+        ? parsed.message
+        : typeof parsed.error === "string"
+          ? parsed.error
+          : typeof parsed.detail === "string"
+            ? parsed.detail
+            : undefined;
+
+    return message?.trim().length ? message : responseText;
+  } catch {
+    return responseText;
+  }
+}
+
 function getSortableCellValue(cell: SparqlBindingValue | undefined): number | string {
   if (cell == null) {
     return "";
@@ -182,6 +221,9 @@ export function SparqlResults({
 
   const hasSuccessfulResult = !isLoading && error == null && result != null;
   const resultCount = tableRows.length;
+  const displayedError = useMemo(() => {
+    return error == null ? null : extractFetchErrorMessage(error);
+  }, [error]);
 
   if (isLoading) {
     return (
@@ -227,9 +269,9 @@ export function SparqlResults({
           <ToggleButton value="table">Table</ToggleButton>
         </ToggleButtonGroup>
       </div>
-      {error != null ? (
+      {displayedError != null ? (
         <pre className="app-code-surface mt-2 max-h-[calc(100vh-14rem)] min-w-0 overflow-auto whitespace-pre-wrap break-words rounded-panel border border-ui-border p-3 text-sm">
-          {error}
+          {displayedError}
         </pre>
       ) : null}
       {error == null && result == null ? (
