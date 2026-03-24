@@ -36,11 +36,15 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
   const [isSparqlLoading, setIsSparqlLoading] = useState(false);
   const [sparqlDurationMs, setSparqlDurationMs] = useState<null | number>(null);
   const [sparqlPayloadBytes, setSparqlPayloadBytes] = useState<null | number>(null);
+  const graphViewerRef = useRef<HTMLDivElement | null>(null);
   const resultsSummaryRef = useRef<HTMLDivElement | null>(null);
   const sparqlAbortController = useRef<AbortController | null>(null);
+  const previousRootNodeIdRef = useRef<null | string>(null);
   const generatedQuery = serializeScenarioToSparql(scenario, pathbuilder);
   const generatedPydanticModel = serializeModelStateToPydantic(scenario, pathbuilder);
   const selectedVariables = getSelectedVariableNames(scenario, pathbuilder);
+  const rootNodeId =
+    scenario.nodes.find((node) => node.id.length === 1)?.id[0] ?? null;
 
   useEffect(() => {
     const rawSource = scenario.xmlSource.trim();
@@ -155,6 +159,29 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
     };
   }, [pathbuilder, referenceEntities, scenario.sparql]);
 
+  useEffect(() => {
+    if (previousRootNodeIdRef.current == null) {
+      previousRootNodeIdRef.current = rootNodeId;
+      return;
+    }
+
+    if (rootNodeId == null || previousRootNodeIdRef.current === rootNodeId) {
+      previousRootNodeIdRef.current = rootNodeId;
+      return;
+    }
+
+    previousRootNodeIdRef.current = rootNodeId;
+    requestAnimationFrame(() => {
+      const graphTop =
+        (graphViewerRef.current?.getBoundingClientRect().top ?? 0) + window.scrollY;
+
+      window.scrollTo({
+        behavior: "smooth",
+        top: graphTop,
+      });
+    });
+  }, [rootNodeId]);
+
   const onCancelQuery = useCallback(() => {
     sparqlAbortController.current?.abort();
   }, []);
@@ -245,7 +272,7 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
             xmlLoadError={xmlLoadError}
           >
             <div className="flex flex-wrap items-stretch gap-4">
-              <div className="flex min-h-[36rem] min-w-[40rem] flex-1">
+              <div className="flex min-h-[36rem] min-w-[40rem] flex-1" ref={graphViewerRef}>
                 <GraphViewer
                   dispatchScenario={dispatchModelState}
                   scenario={scenario}

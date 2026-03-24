@@ -47,6 +47,10 @@
   #root {
     @apply h-full;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 @layer components {

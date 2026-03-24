@@ -137,10 +137,16 @@ export function createSelectedSubgraphAst(
     );
   }
   const graphNodeById = new Map(graphNodes.map((node) => [node.id, node]));
+  const firstSelectedScenarioNode = modelState.nodes.find((node) => node.selected != null);
+  const firstSelectedNodeId =
+    firstSelectedScenarioNode == null ? undefined : stringifyPath(firstSelectedScenarioNode.id);
   const selectedNodeIds = graphNodes
     .filter((node) => node.data.selected != null)
     .map((node) => node.id);
   const selectedNodeIdSet = new Set(selectedNodeIds);
+  const hasSelectedRootModelType = graphNodes.some((node) => {
+    return node.data.selected != null && node.data.id_array.length === 1;
+  });
 
   const { adjacency, edgeNodesById } = buildGraph(graph.edges);
   const includedEdgeIds = new Set<string>();
@@ -205,41 +211,94 @@ export function createSelectedSubgraphAst(
     });
   }
 
+  const preferredRootNodeIds = hasSelectedRootModelType
+    ? selectedNodeIds.filter((nodeId) => {
+        return (graphNodeById.get(nodeId)?.data.id_array.length ?? 0) === 1;
+      })
+    : firstSelectedNodeId != null && astNodeById.has(firstSelectedNodeId)
+      ? [firstSelectedNodeId]
+      : [];
+  const visitedNodeIds = new Set<string>();
   const roots: Array<ModelAstNode> = [];
 
-  for (const node of includedNodes) {
-    const astNode = astNodeById.get(node.id);
-
-    if (astNode == null) {
-      continue;
+  function attachConnectedComponent(rootNodeId: string): void {
+    if (visitedNodeIds.has(rootNodeId)) {
+      return;
     }
 
-    let parentPath = toParentPath(node.data.id_array);
-    let parentAstNode: ModelAstNode | undefined;
+    const rootAstNode = astNodeById.get(rootNodeId);
 
-    while (parentPath.length > 0) {
-      const parentId = stringifyPath(parentPath);
-      parentAstNode = astNodeById.get(parentId);
+    if (rootAstNode == null) {
+      return;
+    }
 
-      if (parentAstNode != null) {
-        break;
+    roots.push(rootAstNode);
+    visitedNodeIds.add(rootNodeId);
+
+    const queue = [rootNodeId];
+
+    while (queue.length > 0) {
+      const currentNodeId = queue.shift()!;
+      const currentAstNode = astNodeById.get(currentNodeId);
+
+      if (currentAstNode == null) {
+        continue;
       }
 
-      parentPath = toParentPath(parentPath);
-    }
+      const neighbors = [...(adjacency.get(currentNodeId) ?? [])].sort((left, right) => {
+        return left.localeCompare(right);
+      });
 
-    if (parentAstNode == null) {
-      roots.push(astNode);
-      continue;
-    }
+      for (const neighborNodeId of neighbors) {
+        if (!includedNodeIds.has(neighborNodeId) || visitedNodeIds.has(neighborNodeId)) {
+          continue;
+        }
 
-    astNode.data.parentEdgeEntityReferencePath =
-      parentEntityReferencePathByEdgeId.get(`${parentAstNode.data.id}->${astNode.data.id}`) ??
-      parentEntityReferencePathByEdgeId.get(`${astNode.data.id}->${parentAstNode.data.id}`);
-    parentAstNode.children.push(astNode);
+        const neighborAstNode = astNodeById.get(neighborNodeId);
+
+        if (neighborAstNode == null) {
+          continue;
+        }
+
+        neighborAstNode.data.parentEdgeEntityReferencePath =
+          parentEntityReferencePathByEdgeId.get(`${currentNodeId}->${neighborNodeId}`) ??
+          parentEntityReferencePathByEdgeId.get(`${neighborNodeId}->${currentNodeId}`);
+        currentAstNode.children.push(neighborAstNode);
+        visitedNodeIds.add(neighborNodeId);
+        queue.push(neighborNodeId);
+      }
+    }
+  }
+
+  for (const rootNodeId of preferredRootNodeIds) {
+    attachConnectedComponent(rootNodeId);
+  }
+
+  const remainingRootNodeIds = includedNodes
+    .map((node) => node.id)
+    .filter((nodeId) => !visitedNodeIds.has(nodeId))
+    .sort((left, right) => left.localeCompare(right));
+
+  for (const rootNodeId of remainingRootNodeIds) {
+    attachConnectedComponent(rootNodeId);
   }
 
   roots.sort((left, right) => {
+    const leftPreferredIndex = preferredRootNodeIds.indexOf(left.data.id);
+    const rightPreferredIndex = preferredRootNodeIds.indexOf(right.data.id);
+
+    if (leftPreferredIndex !== -1 || rightPreferredIndex !== -1) {
+      if (leftPreferredIndex === -1) {
+        return 1;
+      }
+
+      if (rightPreferredIndex === -1) {
+        return -1;
+      }
+
+      return leftPreferredIndex - rightPreferredIndex;
+    }
+
     return left.data.id.localeCompare(right.data.id);
   });
 

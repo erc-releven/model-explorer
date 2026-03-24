@@ -134,6 +134,10 @@ export function ScenarioWorkspace({
   const [isRootPanelExpanded, setIsRootPanelExpanded] = useState(true);
   const [storedScenarios, setStoredScenarios] = useState<Array<StoredScenario>>([]);
   const lastXmlSource = useRef(scenario.xmlSource);
+  const hasVisibleRootModel = scenario.nodes.some((node) => {
+    return node.id.length === 1;
+  });
+  const isRootPanelDisclosureDisabled = !hasVisibleRootModel;
 
   useEffect(() => {
     setStoredScenarios(readStoredScenarios());
@@ -157,10 +161,10 @@ export function ScenarioWorkspace({
   }, [scenario.xmlSource]);
 
   useEffect(() => {
-    if (scenario.nodes.length === 0) {
+    if (!hasVisibleRootModel) {
       setIsRootPanelExpanded(true);
     }
-  }, [scenario.nodes.length]);
+  }, [hasVisibleRootModel]);
 
   function onSaveCurrentScenario(): void {
     const name = window.prompt("Enter a name for the current model state:");
@@ -309,16 +313,24 @@ export function ScenarioWorkspace({
       <div className="flex flex-col gap-4 p-4">
         <Accordion
           disableGutters
-          expanded={scenario.nodes.length === 0 ? true : isRootPanelExpanded}
+          expanded={isRootPanelDisclosureDisabled || isRootPanelExpanded}
           onChange={(_event, expanded) => {
-            if (scenario.nodes.length === 0) {
+            if (isRootPanelDisclosureDisabled) {
               return;
             }
 
             setIsRootPanelExpanded(expanded);
           }}
         >
-          <AccordionSummary className="px-0" expandIcon={<ExpandMoreIcon />}>
+          <AccordionSummary
+            className="px-0"
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              "& .MuiAccordionSummary-expandIconWrapper": {
+                opacity: isRootPanelDisclosureDisabled ? 0.38 : 1,
+              },
+            }}
+          >
             <XmlLoader
               currentXmlSource={scenario.xmlSource}
               dispatchModelState={dispatchModelState}

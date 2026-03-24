@@ -1,4 +1,7 @@
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
+import LinkIcon from "@mui/icons-material/Link";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
 import {
   Alert,
   Button,
@@ -6,6 +9,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  ListItemIcon,
+  ListItemText,
   Menu,
   MenuItem,
   Stack,
@@ -16,6 +21,7 @@ import {
   type ChangeEvent,
   type Dispatch,
   type MouseEvent,
+  type SyntheticEvent,
   useEffect,
   useRef,
   useState,
@@ -103,6 +109,10 @@ export function XmlLoader({
     setMenuAnchor(null);
   }
 
+  function preventAccordionToggle(event: SyntheticEvent): void {
+    event.stopPropagation();
+  }
+
   const hasXmlSource = currentXmlSource.trim().length > 0;
   const displayedSource = loadedSource ?? currentXmlSource;
 
@@ -110,6 +120,9 @@ export function XmlLoader({
     <div
       aria-label="XML loader"
       className="rounded-panel bg-surface-alt px-3 py-2 text-text-strong"
+      onClick={preventAccordionToggle}
+      onFocus={preventAccordionToggle}
+      onMouseDown={preventAccordionToggle}
     >
       <Stack spacing={2}>
         {hasXmlSource ? (
@@ -212,7 +225,10 @@ export function XmlLoader({
             event.stopPropagation();
           }}
         >
-          Upload XML
+          <ListItemIcon>
+            <UploadFileIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Upload XML" />
           <input
             accept=".xml,text/xml,application/xml"
             hidden
@@ -231,7 +247,10 @@ export function XmlLoader({
             setIsUrlDialogOpen(true);
           }}
         >
-          Load XML from URL
+          <ListItemIcon>
+            <LinkIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText primary="Load XML from URL" />
         </MenuItem>
         {xmlShortcuts.map((shortcut) => (
           <MenuItem
@@ -243,7 +262,12 @@ export function XmlLoader({
               loadXmlSource(resolveXmlSourceForFetch(shortcut));
             }}
           >
-            {shortcut}
+            <ListItemIcon>
+              <InsertDriveFileOutlinedIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText
+              primary={<span className="font-mono text-sm">{shortcut}</span>}
+            />
           </MenuItem>
         ))}
       </Menu>

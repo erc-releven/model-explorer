@@ -44,6 +44,10 @@ function stringifyPath(path: Array<string>): string {
   return path.join("");
 }
 
+function toParentPath(path: Array<string>): Array<string> {
+  return path.length > 1 ? path.slice(0, -2) : [];
+}
+
 function createShortestUniqueVariableBaseNames(
   idArrays: Array<Array<string>>,
 ): Map<number, string> {
@@ -115,17 +119,6 @@ function walkNodesWithDepth(
   }
 }
 
-function walkNodesWithParent(
-  nodes: Array<ModelAstNode>,
-  parent: ModelAstNode | undefined,
-  visitor: (node: ModelAstNode, parent: ModelAstNode | undefined) => void,
-): void {
-  for (const node of nodes) {
-    visitor(node, parent);
-    walkNodesWithParent(node.children, node, visitor);
-  }
-}
-
 function escapeIriForSparql(iri: string): string {
   return encodeURI(iri).replace(/[<>"{}|^`\\]/g, (character) => {
     return `%${character.charCodeAt(0).toString(16).toUpperCase()}`;
@@ -191,6 +184,50 @@ function getTraversalIndentLevel(idArray: Array<string>): number {
   }
 
   return depth;
+}
+
+function getTraversalDirectionBetweenNodes(
+  fromNode: ModelAstNode,
+  toNode: ModelAstNode,
+): "down" | "up" | undefined {
+  const fromPath = fromNode.data.id_array;
+  const toPath = toNode.data.id_array;
+  const commonPrefixLength = getCommonPrefixLength(fromPath, toPath);
+
+  if (toPath.length === fromPath.length + 2 && commonPrefixLength === fromPath.length) {
+    return toPath[fromPath.length] === "<" ? "up" : "down";
+  }
+
+  if (fromPath.length === toPath.length + 2 && commonPrefixLength === toPath.length) {
+    return fromPath[toPath.length] === ">" ? "up" : "down";
+  }
+
+  return undefined;
+}
+
+function createLogicalParentByNodeId(
+  allNodes: Array<{ depth: number; node: ModelAstNode }>,
+): Map<string, string> {
+  const nodeIds = new Set(allNodes.map(({ node }) => stringifyPath(node.data.id_array)));
+  const logicalParentByNodeId = new Map<string, string>();
+
+  for (const { node } of allNodes) {
+    const nodeId = stringifyPath(node.data.id_array);
+    let parentPath = toParentPath(node.data.id_array);
+
+    while (parentPath.length > 0) {
+      const parentNodeId = stringifyPath(parentPath);
+
+      if (nodeIds.has(parentNodeId)) {
+        logicalParentByNodeId.set(nodeId, parentNodeId);
+        break;
+      }
+
+      parentPath = toParentPath(parentPath);
+    }
+  }
+
+  return logicalParentByNodeId;
 }
 
 function createNodeVariableMaps(tree: ModelSubgraphAst): {
@@ -272,35 +309,14 @@ function compileAstToSparql(
   let nextNodeVisitIndex = 0;
   const usedPrefixes = new Set<string>();
   const nodeById = new Map(allNodes.map(({ node }) => [stringifyPath(node.data.id_array), node]));
-  const parentByNodeId = new Map<string, string>();
-
-  walkNodesWithParent(tree.children, undefined, (node, parent) => {
-    if (parent == null) {
-      return;
-    }
-
-    parentByNodeId.set(stringifyPath(node.data.id_array), stringifyPath(parent.data.id_array));
-  });
+  const parentByNodeId = createLogicalParentByNodeId(allNodes);
 
   function isUpwardChildNode(node: ModelAstNode, parent: ModelAstNode | undefined): boolean {
     if (parent == null) {
       return false;
     }
 
-    const childPath = node.data.id_array;
-    const parentPath = parent.data.id_array;
-    const commonPrefixLength = getCommonPrefixLength(childPath, parentPath);
-    const directionMarker = childPath[commonPrefixLength];
-
-    if (directionMarker === "<") {
-      return true;
-    }
-
-    if (directionMarker === ">") {
-      return false;
-    }
-
-    return childPath.at(-2) === "<";
+    return getTraversalDirectionBetweenNodes(parent, node) === "up";
   }
 
   function getEffectiveNodePathArray(
@@ -343,8 +359,17 @@ function compileAstToSparql(
     }
 
     const isUpwardEdge = isUpwardChildNode(node, parent);
+    const inheritedStartIndex =
+      parentContext?.pathArray == null
+        ? 0
+        : getCommonPrefixLength(parentContext.pathArray, nodePathArray);
     const startIndex =
-      parent == null ? 0 : Math.min(Math.max(0, nodeOwnStatementStart), nodePathArray.length);
+      parent == null
+        ? Math.min(Math.max(0, inheritedStartIndex), nodePathArray.length)
+        : Math.min(
+            Math.max(0, Math.max(nodeOwnStatementStart, inheritedStartIndex)),
+            nodePathArray.length,
+          );
     const predicateIndexes: Array<number> = [];
 
     for (let pathIndex = startIndex; pathIndex < nodePathArray.length; pathIndex += 1) {
@@ -479,7 +504,15 @@ function compileAstToSparql(
     return nodeVariable;
   }
 
-  for (const root of tree.children) {
+  const orderedRoots = [...tree.children].sort((left, right) => {
+    if (left.data.id_array.length !== right.data.id_array.length) {
+      return left.data.id_array.length - right.data.id_array.length;
+    }
+
+    return left.data.id.localeCompare(right.data.id);
+  });
+
+  for (const root of orderedRoots) {
     emitNodeWithOrderedEdges(root, undefined, undefined);
   }
 
