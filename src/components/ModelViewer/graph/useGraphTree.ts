@@ -26,16 +26,6 @@ function hasPrefix(path: Array<string>, prefix: Array<string>): boolean {
   return prefix.every((part, index) => path[index] === part);
 }
 
-function isVisibleInDirection(
-  path: Array<string>,
-  prefix: Array<string>,
-  direction: "<" | ">",
-): boolean {
-  return (
-    path.length > prefix.length && hasPrefix(path, prefix) && path[prefix.length] === direction
-  );
-}
-
 function appendVisibleNodes(
   nodes: Scenario["nodes"],
   nextPaths: Array<Array<string>>,
@@ -51,6 +41,27 @@ function appendVisibleNodes(
   }
 
   return nextNodes;
+}
+
+function removeVisibleSubtree(
+  nodes: Scenario["nodes"],
+  rootPath: Array<string>,
+): Scenario["nodes"] {
+  return nodes.filter((node) => !hasPrefix(node.id, rootPath));
+}
+
+function setOptionVisibility(
+  nodes: Scenario["nodes"],
+  optionPaths: Array<Array<string>>,
+  visible: boolean,
+): Scenario["nodes"] {
+  if (visible) {
+    return appendVisibleNodes(nodes, optionPaths);
+  }
+
+  return optionPaths.reduce((nextNodes, optionPath) => {
+    return removeVisibleSubtree(nextNodes, optionPath);
+  }, nodes);
 }
 
 function getConnectedSelectedEdgeIds(
@@ -317,37 +328,17 @@ export function useGraphTree({
     [dispatchModelState, modelState.nodes],
   );
 
-  const onExpandTop = useCallback(
-    (idPath: Array<string>) => {
+  const onToggleTopOption = useCallback(
+    (idPath: Array<string>, optionPath: Array<string>) => {
       if (pathbuilder == null) {
         return;
       }
 
       lastExpandedNodeId.current = idPath.join("");
-      const targetPath = resolveTargetPathForNodePath(pathbuilder, idPath);
-
-      if (targetPath == null) {
-        return;
-      }
-
-      const nextVisibleTopPaths =
-        targetPath.references.length > 0
-          ? targetPath.references.map((referenceId) => [...idPath, "<", referenceId])
-          : idPath.at(-2) === "<" && targetPath.group != null
-            ? [[...idPath, "<", targetPath.group]]
-            : [];
-
-      if (nextVisibleTopPaths.length === 0) {
-        return;
-      }
-
-      const hasVisibleTopNodes = nextVisibleTopPaths.some((path) => {
-        return modelState.nodes.some((node) => areNodePathsEqual(node.id, path));
-      });
-
-      const nextNodes = hasVisibleTopNodes
-        ? modelState.nodes.filter((node) => !isVisibleInDirection(node.id, idPath, "<"))
-        : appendVisibleNodes(modelState.nodes, nextVisibleTopPaths);
+      const isVisible = modelState.nodes.some((node) => areNodePathsEqual(node.id, optionPath));
+      const nextNodes = isVisible
+        ? removeVisibleSubtree(modelState.nodes, optionPath)
+        : appendVisibleNodes(modelState.nodes, [optionPath]);
 
       dispatchModelState({
         payload: { nodes: nextNodes },
@@ -357,37 +348,54 @@ export function useGraphTree({
     [dispatchModelState, modelState.nodes, pathbuilder],
   );
 
-  const onExpandBottom = useCallback(
-    (idPath: Array<string>) => {
+  const onSetTopOptionsVisibility = useCallback(
+    (idPath: Array<string>, optionPaths: Array<Array<string>>, visible: boolean) => {
+      if (pathbuilder == null || optionPaths.length === 0) {
+        return;
+      }
+
+      lastExpandedNodeId.current = idPath.join("");
+      dispatchModelState({
+        payload: {
+          nodes: setOptionVisibility(modelState.nodes, optionPaths, visible),
+        },
+        type: "state/setNodes",
+      });
+    },
+    [dispatchModelState, modelState.nodes, pathbuilder],
+  );
+
+  const onToggleBottomOption = useCallback(
+    (idPath: Array<string>, optionPath: Array<string>) => {
       if (pathbuilder == null) {
         return;
       }
 
       lastExpandedNodeId.current = idPath.join("");
-      const targetPath = resolveTargetPathForNodePath(pathbuilder, idPath);
-
-      if (targetPath == null) {
-        return;
-      }
-
-      const nextVisibleBottomPaths = Object.keys(targetPath.children).map((childId) => {
-        return [...idPath, ">", childId];
-      });
-
-      if (nextVisibleBottomPaths.length === 0) {
-        return;
-      }
-
-      const hasVisibleBottomNodes = nextVisibleBottomPaths.some((path) => {
-        return modelState.nodes.some((node) => areNodePathsEqual(node.id, path));
-      });
-
-      const nextNodes = hasVisibleBottomNodes
-        ? modelState.nodes.filter((node) => !isVisibleInDirection(node.id, idPath, ">"))
-        : appendVisibleNodes(modelState.nodes, nextVisibleBottomPaths);
+      const isVisible = modelState.nodes.some((node) => areNodePathsEqual(node.id, optionPath));
+      const nextNodes = isVisible
+        ? removeVisibleSubtree(modelState.nodes, optionPath)
+        : appendVisibleNodes(modelState.nodes, [optionPath]);
 
       dispatchModelState({
         payload: { nodes: nextNodes },
+        type: "state/setNodes",
+      });
+    },
+    [dispatchModelState, modelState.nodes, pathbuilder],
+  );
+
+  const onSetBottomOptionsVisibility = useCallback(
+    (idPath: Array<string>, optionPaths: Array<Array<string>>, visible: boolean) => {
+      if (pathbuilder == null || optionPaths.length === 0) {
+        return;
+      }
+
+      lastExpandedNodeId.current = idPath.join("");
+      dispatchModelState({
+        payload: {
+          nodes: setOptionVisibility(modelState.nodes, optionPaths, visible),
+        },
         type: "state/setNodes",
       });
     },
@@ -398,9 +406,11 @@ export function useGraphTree({
     const baseGraph = createGraphFromScenario(
       modelState,
       pathbuilder,
-      onExpandBottom,
+      onSetBottomOptionsVisibility,
+      onToggleBottomOption,
       onSelectNode,
-      onExpandTop,
+      onSetTopOptionsVisibility,
+      onToggleTopOption,
     );
 
     const selectedNodeIds = modelState.nodes
@@ -445,7 +455,15 @@ export function useGraphTree({
         };
       }),
     };
-  }, [modelState, onExpandBottom, onExpandTop, onSelectNode, pathbuilder]);
+  }, [
+    modelState,
+    onSelectNode,
+    onSetBottomOptionsVisibility,
+    onSetTopOptionsVisibility,
+    onToggleBottomOption,
+    onToggleTopOption,
+    pathbuilder,
+  ]);
 
   useEffect(() => {
     const currentSparqlConfigSerialized = JSON.stringify(modelState.sparql);

@@ -14,9 +14,19 @@ export type GraphNode = Node<PathNodeData>;
 export function createGraphFromScenario(
   scenario: Scenario,
   pathbuilder: null | Pathbuilder,
-  onExpandBottom: (idPath: Array<string>) => void,
+  onSetBottomOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void,
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void,
   onSelectNode: (idPath: Array<string>, count: boolean) => void,
-  onExpandTop: (idPath: Array<string>) => void,
+  onSetTopOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void,
+  onToggleTopOption: (idPath: Array<string>, optionPath: Array<string>) => void,
 ): {
   edges: Array<GraphEdge>;
   nodes: Array<GraphNode>;
@@ -24,9 +34,11 @@ export function createGraphFromScenario(
   return createSerializerGraphFromScenario(
     scenario,
     pathbuilder,
-    onExpandBottom,
+    onSetBottomOptionsVisibility,
+    onToggleBottomOption,
     onSelectNode,
-    onExpandTop,
+    onSetTopOptionsVisibility,
+    onToggleTopOption,
   ) as {
     edges: Array<GraphEdge>;
     nodes: Array<GraphNode>;

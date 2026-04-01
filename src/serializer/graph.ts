@@ -1,20 +1,37 @@
 import type { Scenario, SelectedState } from "../scenario";
 import type { Pathbuilder, PathbuilderPath } from "./pathbuilder";
 
+export interface PathNodeExpansionOption {
+  id: string;
+  label: string;
+  path: Array<string>;
+  visible: boolean;
+}
+
 export interface PathNodeData extends Record<string, unknown> {
-  bottomExpanded: boolean;
+  bottomExpansionOptions: Array<PathNodeExpansionOption>;
   countDistinct?: number;
   countTotal?: number;
   hasChildren: boolean;
   hasReferences: boolean;
   id_array: Array<string>;
-  onExpandBottom: (idPath: Array<string>) => void;
-  onExpandTop: (idPath: Array<string>) => void;
+  onSetBottomOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void;
+  onSetTopOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void;
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void;
+  onToggleTopOption: (idPath: Array<string>, optionPath: Array<string>) => void;
   onSelectNode: (idPath: Array<string>, count: boolean) => void;
   row_index: number;
   selected?: SelectedState;
   targetPath: PathbuilderPath;
-  topExpanded: boolean;
+  topExpansionOptions: Array<PathNodeExpansionOption>;
 }
 
 export interface ScenarioGraphNode {
@@ -141,47 +158,105 @@ export function resolveTargetPathForNodePath(
 }
 
 function isDirectVisibleExtension(
-  visiblePaths: Array<Array<string>>,
+  visiblePathKeys: Set<string>,
   nodePath: Array<string>,
-  direction: "<" | ">",
+  directPath: Array<string>,
 ): boolean {
-  const nextLength = nodePath.length + 2;
-  const traversalDepth = countTraversalSteps(nodePath);
+  return (
+    directPath.length === nodePath.length + 2 &&
+    countTraversalSteps(directPath) === countTraversalSteps(nodePath) + 1 &&
+    visiblePathKeys.has(stringifyPath(directPath))
+  );
+}
 
-  return visiblePaths.some((visiblePath) => {
-    return (
-      visiblePath.length === nextLength &&
-      countTraversalSteps(visiblePath) === traversalDepth + 1 &&
-      visiblePath[nodePath.length] === direction &&
-      nodePath.every((part, index) => visiblePath[index] === part)
-    );
+function getTopExpansionOptions(
+  pathbuilder: Pathbuilder,
+  visiblePathKeys: Set<string>,
+  nodePath: Array<string>,
+  targetPath: PathbuilderPath,
+): Array<PathNodeExpansionOption> {
+  const optionPaths =
+    targetPath.references.length > 0
+      ? targetPath.references.map((referenceId) => [...nodePath, "<", referenceId])
+      : idPathReachedFromBelow(nodePath) && targetPath.group != null
+        ? [[...nodePath, "<", targetPath.group]]
+        : [];
+
+  return optionPaths
+    .map((path) => {
+      const optionTargetPath = resolveTargetPathForNodePath(pathbuilder, path);
+
+      if (optionTargetPath == null) {
+        return undefined;
+      }
+
+      return {
+        id: stringifyPath(path),
+        label: optionTargetPath.name,
+        path,
+        visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
+      };
+    })
+    .filter((option): option is PathNodeExpansionOption => option != null);
+}
+
+function getBottomExpansionOptions(
+  visiblePathKeys: Set<string>,
+  nodePath: Array<string>,
+  targetPath: PathbuilderPath,
+): Array<PathNodeExpansionOption> {
+  return Object.values(targetPath.children).map((childPath) => {
+    const path = [...nodePath, ">", childPath.id];
+
+    return {
+      id: stringifyPath(path),
+      label: childPath.name,
+      path,
+      visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
+    };
   });
+}
+
+function idPathReachedFromBelow(nodePath: Array<string>): boolean {
+  return nodePath.at(-2) === "<";
 }
 
 function createPathNode(
   path: Array<string>,
   pathbuilderPath: PathbuilderPath,
-  bottomExpanded: boolean,
-  onExpandBottom: (idPath: Array<string>) => void,
+  bottomExpansionOptions: Array<PathNodeExpansionOption>,
+  onSetBottomOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void,
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void,
   onSelectNode: (idPath: Array<string>, count: boolean) => void,
-  onExpandTop: (idPath: Array<string>) => void,
-  topExpanded: boolean,
+  onSetTopOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void,
+  onToggleTopOption: (idPath: Array<string>, optionPath: Array<string>) => void,
   selected: SelectedState | undefined,
   rowIndex: number,
+  topExpansionOptions: Array<PathNodeExpansionOption>,
 ): ScenarioGraphNode {
   return {
     data: {
-      bottomExpanded,
+      bottomExpansionOptions,
       hasChildren: Object.keys(pathbuilderPath.children).length > 0,
       hasReferences: pathbuilderPath.references.length > 0,
       id_array: path,
-      onExpandBottom,
-      onExpandTop,
+      onSetBottomOptionsVisibility,
+      onSetTopOptionsVisibility,
+      onToggleBottomOption,
+      onToggleTopOption,
       onSelectNode,
       row_index: rowIndex,
       selected,
       targetPath: pathbuilderPath,
-      topExpanded,
+      topExpansionOptions,
     },
     id: stringifyPath(path),
     position: { x: 0, y: rowIndex * 160 },
@@ -255,9 +330,19 @@ function createEdgeForNode(
 export function createGraphFromScenario(
   scenario: Scenario,
   pathbuilder: null | Pathbuilder,
-  onExpandBottom: (idPath: Array<string>) => void,
+  onSetBottomOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void,
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void,
   onSelectNode: (idPath: Array<string>, count: boolean) => void,
-  onExpandTop: (idPath: Array<string>) => void,
+  onSetTopOptionsVisibility: (
+    idPath: Array<string>,
+    optionPaths: Array<Array<string>>,
+    visible: boolean,
+  ) => void,
+  onToggleTopOption: (idPath: Array<string>, optionPath: Array<string>) => void,
 ): {
   edges: Array<ScenarioGraphEdge>;
   nodes: Array<ScenarioGraphNode>;
@@ -266,7 +351,7 @@ export function createGraphFromScenario(
     return { edges: [], nodes: [] };
   }
 
-  const visiblePaths = scenario.nodes.map((node) => node.id);
+  const visiblePathKeys = new Set(scenario.nodes.map((node) => stringifyPath(node.id)));
   const resolvedNodes: Array<ResolvedScenarioNode> = scenario.nodes
     .map((nodeState) => {
       const targetPath = resolveTargetPathForNodePath(pathbuilder, nodeState.id);
@@ -286,16 +371,30 @@ export function createGraphFromScenario(
     resolvedNodes.map((node) => [stringifyPath(node.nodeState.id), node]),
   );
   const nodes = resolvedNodes.map(({ nodeState, rowIndex, targetPath }) => {
+    const topExpansionOptions = getTopExpansionOptions(
+      pathbuilder,
+      visiblePathKeys,
+      nodeState.id,
+      targetPath,
+    );
+    const bottomExpansionOptions = getBottomExpansionOptions(
+      visiblePathKeys,
+      nodeState.id,
+      targetPath,
+    );
+
     return createPathNode(
       nodeState.id,
       targetPath,
-      isDirectVisibleExtension(visiblePaths, nodeState.id, ">"),
-      onExpandBottom,
+      bottomExpansionOptions,
+      onSetBottomOptionsVisibility,
+      onToggleBottomOption,
       onSelectNode,
-      onExpandTop,
-      isDirectVisibleExtension(visiblePaths, nodeState.id, "<"),
+      onSetTopOptionsVisibility,
+      onToggleTopOption,
       nodeState.selected,
       rowIndex,
+      topExpansionOptions,
     );
   });
   const edges: Array<ScenarioGraphEdge> = [];
