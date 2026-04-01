@@ -2,11 +2,11 @@ import type { Edge } from "@xyflow/react";
 import { type Dispatch, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createDefaultNodeState, type Scenario, type ScenarioAction } from "../../../scenario";
-import { resolveTargetPathForNodePath, stringifyPath } from "../../../serializer/graph";
 import type { Pathbuilder } from "../../../serializer/pathbuilder";
 import { fetchCountForNodePath } from "../../../serializer/sparql-query";
 import { graphEdgeColors, graphNodeBorderColors } from "../../../theme/colors";
 import { createGraphFromScenario } from "../graph-layout";
+import { resolveTargetPathForNodePath, stringifyPath } from "./graph-paths";
 
 interface UseGraphTreeParams {
   dispatchScenario: Dispatch<ScenarioAction>;
