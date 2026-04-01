@@ -16,7 +16,6 @@ export default {
         primary: "rgb(45 58 104)",
         surface: "rgb(255 255 255)",
         "surface-alt": "rgb(245 246 250)",
-        "surface-hover": "rgb(0 21 128)",
         "surface-subtle": "rgb(0 21 128)",
         "text-strong": "rgb(0 6 38)",
         "ui-border": "rgb(0 17 102)",

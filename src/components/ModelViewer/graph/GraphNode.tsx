@@ -1,3 +1,4 @@
+import { Button } from "@mui/material";
 import { type NodeProps, Position } from "@xyflow/react";
 
 import { abbreviateType } from "../../../serializer/prefixes";
@@ -25,17 +26,34 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
       <HiddenHandle id="top" position={Position.Top} type="target" />
       {canExpandTop ? (
         <HoverTooltip title={topTooltip}>
-          <button
+          <Button
             aria-label="Expand upwards"
-            className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[100%] rounded border border-ui-border bg-surface px-1 text-xs text-text-strong hover:bg-surface-hover"
-            type="button"
+            size="small"
+            sx={{
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              color: nodeBorderColor,
+              borderColor: nodeBorderColor,
+              height: 24,
+              left: "50%",
+              minWidth: 0,
+              p: 0,
+              position: "absolute",
+              top: 0,
+              transform: "translate(-50%, -100%)",
+              width: 24,
+              "&:hover": {
+                borderColor: nodeBorderColor,
+              },
+            }}
+            variant="outlined"
             onClick={(event) => {
               event.stopPropagation();
               data.onExpandTop(data.id_array);
             }}
           >
             {data.topExpanded ? "▲" : "△"}
-          </button>
+          </Button>
         </HoverTooltip>
       ) : null}
       <div
@@ -76,17 +94,34 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         <HoverTooltip
           title={`${data.bottomExpanded ? "collapse" : "expand"} ${String(Object.keys(data.targetPath.children).length)} fields`}
         >
-          <button
+          <Button
             aria-label="Expand downwards"
-            className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-[100%] rounded border border-ui-border bg-surface px-1 text-xs text-text-strong hover:bg-surface-hover"
-            type="button"
+            size="small"
+            sx={{
+              bgcolor: "background.paper",
+              bottom: 0,
+              borderRadius: 1,
+              color: nodeBorderColor,
+              borderColor: nodeBorderColor,
+              height: 24,
+              left: "50%",
+              minWidth: 0,
+              p: 0,
+              position: "absolute",
+              transform: "translate(-50%, 100%)",
+              width: 24,
+              "&:hover": {
+                borderColor: nodeBorderColor,
+              },
+            }}
+            variant="outlined"
             onClick={(event) => {
               event.stopPropagation();
               data.onExpandBottom(data.id_array);
             }}
           >
             {data.bottomExpanded ? "▼" : "▽"}
-          </button>
+          </Button>
         </HoverTooltip>
       ) : null}
       <HiddenHandle id="bottom" position={Position.Bottom} type="source" />

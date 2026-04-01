@@ -143,17 +143,18 @@ export function XmlLoader({
                 Pathbuilder: parsed
                 {` ${String(pathCount)} paths and ${String(rootClassCount)} root classes from`}
               </span>
-              <button
-                className="inline-flex cursor-pointer items-center gap-1 rounded-panel border border-ui-border bg-surface px-2 py-1 text-left text-sm text-text-strong hover:bg-surface-hover"
-                type="button"
+              <Button
+                endIcon={<ExpandMoreIcon fontSize="inherit" />}
+                size="small"
+                sx={{ textTransform: "none" }}
+                variant="outlined"
                 onMouseDown={(event) => {
                   event.stopPropagation();
                 }}
                 onClick={onOpenMenu}
               >
                 <code>{displayedSource}</code>
-                <ExpandMoreIcon fontSize="inherit" />
-              </button>
+              </Button>
             </Typography>
           </div>
         ) : (

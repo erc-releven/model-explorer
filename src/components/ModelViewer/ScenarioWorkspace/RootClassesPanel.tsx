@@ -1,4 +1,4 @@
-import { Tooltip } from "@mui/material";
+import { Button, Tooltip } from "@mui/material";
 import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import { type Dispatch, useMemo } from "react";
 
@@ -55,16 +55,22 @@ export function RootClassesPanel({
 
           return (
             <Tooltip title="start new model selection centered on this class">
-              <button
-                className="rounded-panel border border-ui-border bg-surface px-2 py-1 text-left text-sm text-text-strong hover:bg-surface-hover"
-                type="button"
+              <Button
+                size="small"
+                sx={{
+                  justifyContent: "flex-start",
+                  maxWidth: "100%",
+                  textAlign: "left",
+                  textTransform: "none",
+                }}
+                variant="outlined"
                 onClick={(event) => {
                   event.stopPropagation();
                   showOnlyRootNode(rootNodeId);
                 }}
               >
                 {params.value ?? ""}
-              </button>
+              </Button>
             </Tooltip>
           );
         },
