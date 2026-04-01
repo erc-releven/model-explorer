@@ -2,9 +2,12 @@ import type { Scenario, SelectedState } from "../scenario";
 import type { Pathbuilder, PathbuilderPath } from "./pathbuilder";
 
 export interface PathNodeExpansionOption {
+  disabled: boolean;
   id: string;
   label: string;
   path: Array<string>;
+  relationLabel?: "incoming" | "outgoing";
+  rdfType: string;
   visible: boolean;
 }
 
@@ -169,12 +172,48 @@ function isDirectVisibleExtension(
   );
 }
 
+function isSameModelClass(left: PathbuilderPath, right: PathbuilderPath): boolean {
+  if (left.rdf_type.length > 0 && right.rdf_type.length > 0) {
+    return left.rdf_type === right.rdf_type;
+  }
+
+  return left.name === right.name;
+}
+
+function getPreviousVisiblePathOption(
+  pathbuilder: Pathbuilder,
+  visiblePathKeys: Set<string>,
+  nodePath: Array<string>,
+): { path: Array<string>; targetPath: PathbuilderPath } | undefined {
+  if (nodePath.length <= 1) {
+    return undefined;
+  }
+
+  const previousPath = nodePath.slice(0, -2);
+
+  if (!visiblePathKeys.has(stringifyPath(previousPath))) {
+    return undefined;
+  }
+
+  const previousTargetPath = resolveTargetPathForNodePath(pathbuilder, previousPath);
+
+  if (previousTargetPath == null) {
+    return undefined;
+  }
+
+  return { path: previousPath, targetPath: previousTargetPath };
+}
+
 function getTopExpansionOptions(
   pathbuilder: Pathbuilder,
   visiblePathKeys: Set<string>,
   nodePath: Array<string>,
   targetPath: PathbuilderPath,
 ): Array<PathNodeExpansionOption> {
+  const previousVisiblePathOption =
+    nodePath.at(-2) === ">"
+      ? getPreviousVisiblePathOption(pathbuilder, visiblePathKeys, nodePath)
+      : undefined;
   const optionPaths =
     targetPath.references.length > 0
       ? targetPath.references.map((referenceId) => [...nodePath, "<", referenceId])
@@ -182,7 +221,7 @@ function getTopExpansionOptions(
         ? [[...nodePath, "<", targetPath.group]]
         : [];
 
-  return optionPaths
+  const resolvedOptions = optionPaths
     .map((path) => {
       const optionTargetPath = resolveTargetPathForNodePath(pathbuilder, path);
 
@@ -191,30 +230,97 @@ function getTopExpansionOptions(
       }
 
       return {
+        disabled: false,
         id: stringifyPath(path),
         label: optionTargetPath.name,
         path,
+        relationLabel:
+          previousVisiblePathOption != null &&
+          isSameModelClass(optionTargetPath, previousVisiblePathOption.targetPath)
+            ? "incoming"
+            : undefined,
+        rdfType: optionTargetPath.rdf_type,
         visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
       };
     })
     .filter((option): option is PathNodeExpansionOption => option != null);
+
+  if (previousVisiblePathOption == null) {
+    return resolvedOptions;
+  }
+
+  const nextOptions: Array<PathNodeExpansionOption> = [];
+
+  for (const option of resolvedOptions) {
+    if (option.relationLabel === "incoming") {
+      nextOptions.push({
+        disabled: true,
+        id: `${stringifyPath(previousVisiblePathOption.path)}::outgoing`,
+        label: previousVisiblePathOption.targetPath.name,
+        path: previousVisiblePathOption.path,
+        relationLabel: "outgoing",
+        rdfType: previousVisiblePathOption.targetPath.rdf_type,
+        visible: true,
+      });
+    }
+
+    nextOptions.push(option);
+  }
+
+  return nextOptions;
 }
 
 function getBottomExpansionOptions(
+  pathbuilder: Pathbuilder,
   visiblePathKeys: Set<string>,
   nodePath: Array<string>,
   targetPath: PathbuilderPath,
 ): Array<PathNodeExpansionOption> {
-  return Object.values(targetPath.children).map((childPath) => {
+  const previousVisiblePathOption =
+    nodePath.at(-2) === "<"
+      ? getPreviousVisiblePathOption(pathbuilder, visiblePathKeys, nodePath)
+      : undefined;
+  const resolvedOptions = Object.values(targetPath.children).map((childPath) => {
     const path = [...nodePath, ">", childPath.id];
 
     return {
+      disabled: false,
       id: stringifyPath(path),
       label: childPath.name,
       path,
+      relationLabel:
+        previousVisiblePathOption != null &&
+        isSameModelClass(childPath, previousVisiblePathOption.targetPath)
+          ? "outgoing"
+          : undefined,
+      rdfType: childPath.rdf_type,
       visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
     };
   });
+
+  if (previousVisiblePathOption == null) {
+    return resolvedOptions;
+  }
+
+  const nextOptions: Array<PathNodeExpansionOption> = [];
+
+  for (const option of resolvedOptions) {
+    if (option.relationLabel === "outgoing") {
+      nextOptions.push({
+        disabled: true,
+        id: `${stringifyPath(previousVisiblePathOption.path)}::incoming`,
+        label: previousVisiblePathOption.targetPath.name,
+        path: previousVisiblePathOption.path,
+        relationLabel: "incoming",
+        rdfType: previousVisiblePathOption.targetPath.rdf_type,
+        visible: true,
+      });
+    }
+
+    nextOptions.push(option);
+  }
+
+  return nextOptions;
 }
 
 function idPathReachedFromBelow(nodePath: Array<string>): boolean {
@@ -378,6 +484,7 @@ export function createGraphFromScenario(
       targetPath,
     );
     const bottomExpansionOptions = getBottomExpansionOptions(
+      pathbuilder,
       visiblePathKeys,
       nodeState.id,
       targetPath,

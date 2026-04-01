@@ -66,14 +66,14 @@ function getExpansionTooltip(
   const label = direction === "top" ? "parents" : "children";
 
   if (visibleCount === 0) {
-    return `show ${String(totalCount)} available ${label}`;
+    return `show ${String(totalCount)} available ${label}; shift-click to show all`;
   }
 
   if (visibleCount === totalCount) {
-    return `all ${label} visible`;
+    return `all ${String(totalCount)} ${label} visible; shift-click to hide all`;
   }
 
-  return `${String(visibleCount)} of ${String(totalCount)} ${label} visible`;
+  return `${String(visibleCount)} of ${String(totalCount)} ${label} visible; shift-click to show all`;
 }
 
 interface ExpansionMenuProps {
@@ -93,9 +93,10 @@ function ExpansionMenu({
   onToggle,
   onToggleAll,
 }: ExpansionMenuProps) {
-  const visibleCount = options.filter((option) => option.visible).length;
-  const allVisible = options.length > 0 && visibleCount === options.length;
-  const partiallyVisible = visibleCount > 0 && visibleCount < options.length;
+  const actionableOptions = options.filter((option) => !option.disabled);
+  const visibleCount = actionableOptions.filter((option) => option.visible).length;
+  const allVisible = actionableOptions.length > 0 && visibleCount === actionableOptions.length;
+  const partiallyVisible = visibleCount > 0 && visibleCount < actionableOptions.length;
 
   return (
     <Menu anchorEl={anchorEl} open={open} onClose={onClose}>
@@ -125,7 +126,7 @@ function ExpansionMenu({
             />
           </ListItemIcon>
           <ListItemText
-            primary="Select all"
+            primary="Show all"
             primaryTypographyProps={{ fontSize: 12, lineHeight: 1.1 }}
           />
         </ListItemButton>
@@ -136,13 +137,17 @@ function ExpansionMenu({
             dense
             onClick={(event) => {
               event.stopPropagation();
-              onToggle(option.path);
+              if (!option.disabled) {
+                onToggle(option.path);
+              }
             }}
+            disabled={option.disabled}
             sx={{ minHeight: 28, px: 1 }}
           >
             <ListItemIcon sx={{ minWidth: 24 }}>
               <Checkbox
                 checked={option.visible}
+                disabled={option.disabled}
                 edge="start"
                 size="small"
                 tabIndex={-1}
@@ -151,12 +156,24 @@ function ExpansionMenu({
                 }}
                 onChange={(event) => {
                   event.stopPropagation();
-                  onToggle(option.path);
+                  if (!option.disabled) {
+                    onToggle(option.path);
+                  }
                 }}
               />
             </ListItemIcon>
             <ListItemText
-              primary={option.label}
+              primary={
+                <div className="flex items-center gap-2">
+                  <span>
+                    {option.label}
+                    {option.relationLabel != null ? ` (${option.relationLabel})` : ""}
+                  </span>
+                  <code className="rounded bg-surface-alt px-2 py-0.5 font-mono text-xs text-muted">
+                    {abbreviateType(option.rdfType)}
+                  </code>
+                </div>
+              }
               primaryTypographyProps={{ fontSize: 12, lineHeight: 1.1 }}
             />
           </ListItemButton>
@@ -175,12 +192,23 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         : graphNodeBorderColors.default;
   const [topAnchor, setTopAnchor] = useState<HTMLElement | null>(null);
   const [bottomAnchor, setBottomAnchor] = useState<HTMLElement | null>(null);
-  const topVisibleCount = useMemo(() => {
-    return data.topExpansionOptions.filter((option) => option.visible).length;
+  const actionableTopOptions = useMemo(() => {
+    return data.topExpansionOptions.filter((option) => !option.disabled);
   }, [data.topExpansionOptions]);
-  const bottomVisibleCount = useMemo(() => {
-    return data.bottomExpansionOptions.filter((option) => option.visible).length;
+  const actionableBottomOptions = useMemo(() => {
+    return data.bottomExpansionOptions.filter((option) => !option.disabled);
   }, [data.bottomExpansionOptions]);
+  const topVisibleCount = useMemo(() => {
+    return actionableTopOptions.filter((option) => option.visible).length;
+  }, [actionableTopOptions]);
+  const bottomVisibleCount = useMemo(() => {
+    return actionableBottomOptions.filter((option) => option.visible).length;
+  }, [actionableBottomOptions]);
+  const allTopVisible =
+    actionableTopOptions.length > 0 && topVisibleCount === actionableTopOptions.length;
+  const allBottomVisible =
+    actionableBottomOptions.length > 0 &&
+    bottomVisibleCount === actionableBottomOptions.length;
   const buttonSx = {
     bgcolor: "background.paper",
     borderColor: nodeBorderColor,
@@ -198,8 +226,17 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   function onOpenTopMenu(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation();
 
-    if (data.topExpansionOptions.length === 1) {
-      data.onToggleTopOption(data.id_array, data.topExpansionOptions[0]!.path);
+    if (event.shiftKey && actionableTopOptions.length >= 2) {
+      data.onSetTopOptionsVisibility(
+        data.id_array,
+        actionableTopOptions.map((option) => option.path),
+        !allTopVisible,
+      );
+      return;
+    }
+
+    if (actionableTopOptions.length === 1) {
+      data.onToggleTopOption(data.id_array, actionableTopOptions[0]!.path);
       return;
     }
 
@@ -209,8 +246,17 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   function onOpenBottomMenu(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation();
 
-    if (data.bottomExpansionOptions.length === 1) {
-      data.onToggleBottomOption(data.id_array, data.bottomExpansionOptions[0]!.path);
+    if (event.shiftKey && actionableBottomOptions.length >= 2) {
+      data.onSetBottomOptionsVisibility(
+        data.id_array,
+        actionableBottomOptions.map((option) => option.path),
+        !allBottomVisible,
+      );
+      return;
+    }
+
+    if (actionableBottomOptions.length === 1) {
+      data.onToggleBottomOption(data.id_array, actionableBottomOptions[0]!.path);
       return;
     }
 
@@ -220,13 +266,13 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   return (
     <div>
       <HiddenHandle id="top" position={Position.Top} type="target" />
-      {data.topExpansionOptions.length > 0 ? (
+      {actionableTopOptions.length > 0 ? (
         <HoverTooltip
           title={getExpansionTooltip(
             "top",
             topVisibleCount,
-            data.topExpansionOptions.length,
-            data.topExpansionOptions,
+            actionableTopOptions.length,
+            actionableTopOptions,
           )}
         >
           <Button
@@ -242,7 +288,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
             variant="outlined"
             onClick={onOpenTopMenu}
           >
-            {renderExpansionIcon("top", topVisibleCount, data.topExpansionOptions.length)}
+            {renderExpansionIcon("top", topVisibleCount, actionableTopOptions.length)}
           </Button>
         </HoverTooltip>
       ) : null}
@@ -280,13 +326,13 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           </code>
         </div>
       </div>
-      {data.bottomExpansionOptions.length > 0 ? (
+      {actionableBottomOptions.length > 0 ? (
         <HoverTooltip
           title={getExpansionTooltip(
             "bottom",
             bottomVisibleCount,
-            data.bottomExpansionOptions.length,
-            data.bottomExpansionOptions,
+            actionableBottomOptions.length,
+            actionableBottomOptions,
           )}
         >
           <Button
@@ -305,12 +351,12 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
             {renderExpansionIcon(
               "bottom",
               bottomVisibleCount,
-              data.bottomExpansionOptions.length,
+              actionableBottomOptions.length,
             )}
           </Button>
         </HoverTooltip>
       ) : null}
-      {data.topExpansionOptions.length > 1 ? (
+      {actionableTopOptions.length > 1 ? (
         <ExpansionMenu
           anchorEl={topAnchor}
           open={topAnchor != null}
@@ -321,7 +367,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           onToggleAll={(nextVisible) => {
             data.onSetTopOptionsVisibility(
               data.id_array,
-              data.topExpansionOptions.map((option) => option.path),
+              actionableTopOptions.map((option) => option.path),
               nextVisible,
             );
           }}
@@ -330,7 +376,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           }}
         />
       ) : null}
-      {data.bottomExpansionOptions.length > 1 ? (
+      {actionableBottomOptions.length > 1 ? (
         <ExpansionMenu
           anchorEl={bottomAnchor}
           open={bottomAnchor != null}
@@ -341,7 +387,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           onToggleAll={(nextVisible) => {
             data.onSetBottomOptionsVisibility(
               data.id_array,
-              data.bottomExpansionOptions.map((option) => option.path),
+              actionableBottomOptions.map((option) => option.path),
               nextVisible,
             );
           }}
