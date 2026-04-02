@@ -134,6 +134,13 @@ export function ScenarioWorkspace({
   const [isRootPanelExpanded, setIsRootPanelExpanded] = useState(true);
   const [storedScenarios, setStoredScenarios] = useState<Array<StoredScenario>>([]);
   const lastXmlSource = useRef(scenario.xmlSource);
+  const activeSavedScenarioName = activeTab.startsWith("saved:")
+    ? activeTab.slice("saved:".length)
+    : null;
+  const activeStoredScenario =
+    activeSavedScenarioName == null
+      ? null
+      : storedScenarios.find((entry) => entry.name === activeSavedScenarioName) ?? null;
   const hasVisibleRootModel = scenario.nodes.some((node) => {
     return node.id.length === 1;
   });
@@ -216,99 +223,92 @@ export function ScenarioWorkspace({
   return (
     <div className="rounded-panel border border-ui-border">
       <div className="border-b border-ui-border px-3">
-        <Tabs
-          value={activeTab}
-          onChange={(_event, nextValue: string) => {
-            if (nextValue === createTabValue) {
-              onSaveCurrentScenario();
-              return;
-            }
-
-            setActiveTab(nextValue);
-
-            if (nextValue === "current") {
-              const currentScenario = readCurrentScenario();
-
-              if (currentScenario != null) {
-                dispatchModelState({
-                  payload: { scenario: currentScenario },
-                  type: "state/replace",
-                });
+        <div className="flex items-center justify-between gap-2">
+          <Tabs
+            value={activeTab}
+            onChange={(_event, nextValue: string) => {
+              if (nextValue === createTabValue) {
+                onSaveCurrentScenario();
+                return;
               }
 
-              return;
-            }
+              setActiveTab(nextValue);
 
-            if (!nextValue.startsWith("saved:")) {
-              return;
-            }
+              if (nextValue === "current") {
+                const currentScenario = readCurrentScenario();
 
-            const targetName = nextValue.slice("saved:".length);
-            const targetState = storedScenarios.find((entry) => entry.name === targetName);
+                if (currentScenario != null) {
+                  dispatchModelState({
+                    payload: { scenario: currentScenario },
+                    type: "state/replace",
+                  });
+                }
 
-            if (targetState == null) {
-              return;
-            }
+                return;
+              }
 
-            const parsedScenario = parseScenario(targetState.scenario);
+              if (!nextValue.startsWith("saved:")) {
+                return;
+              }
 
-            if (parsedScenario == null) {
-              onDeleteStoredScenario(targetName);
-              setActiveTab("current");
-              return;
-            }
+              const targetName = nextValue.slice("saved:".length);
+              const targetState = storedScenarios.find((entry) => entry.name === targetName);
 
-            dispatchModelState({
-              payload: { scenario: parsedScenario },
-              type: "state/replace",
-            });
-          }}
-        >
-          <Tab label="current" value="current" />
-          {storedScenarios.map((entry) => (
+              if (targetState == null) {
+                return;
+              }
+
+              const parsedScenario = parseScenario(targetState.scenario);
+
+              if (parsedScenario == null) {
+                onDeleteStoredScenario(targetName);
+                setActiveTab("current");
+                return;
+              }
+
+              dispatchModelState({
+                payload: { scenario: parsedScenario },
+                type: "state/replace",
+              });
+            }}
+          >
+            <Tab label="current" value="current" />
+            {storedScenarios.map((entry) => (
+              <Tab key={entry.name} label={entry.name} value={`saved:${entry.name}`} />
+            ))}
             <Tab
-              key={entry.name}
-              label={
-                activeTab === `saved:${entry.name}` ? (
-                  <span className="inline-flex items-center gap-1">
-                    <span>{entry.name}</span>
-                    <IconButton
-                      aria-label={`Save ${entry.name}`}
-                      disabled={areScenariosEqual(scenario, entry.scenario)}
-                      size="small"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onSaveStoredScenario(entry.name);
-                      }}
-                    >
-                      <SaveIcon fontSize="inherit" />
-                    </IconButton>
-                    <IconButton
-                      aria-label={`Delete ${entry.name}`}
-                      size="small"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onDeleteStoredScenario(entry.name);
-                      }}
-                    >
-                      <CloseIcon fontSize="inherit" />
-                    </IconButton>
-                  </span>
-                ) : (
-                  entry.name
-                )
-              }
-              value={`saved:${entry.name}`}
+              aria-label="Create named model state from current"
+              icon={<AddIcon />}
+              value={createTabValue}
             />
-          ))}
-          <Tab
-            aria-label="Create named model state from current"
-            icon={<AddIcon />}
-            value={createTabValue}
-          />
-        </Tabs>
+          </Tabs>
+          {activeSavedScenarioName != null ? (
+            <div className="flex items-center gap-1">
+              <IconButton
+                aria-label={`Save ${activeSavedScenarioName}`}
+                disabled={
+                  activeStoredScenario == null ||
+                  areScenariosEqual(scenario, activeStoredScenario.scenario)
+                }
+                size="small"
+                onClick={() => {
+                  onSaveStoredScenario(activeSavedScenarioName);
+                }}
+              >
+                <SaveIcon fontSize="inherit" />
+              </IconButton>
+              <IconButton
+                aria-label={`Delete ${activeSavedScenarioName}`}
+                size="small"
+                onClick={() => {
+                  onDeleteStoredScenario(activeSavedScenarioName);
+                }}
+              >
+                <CloseIcon fontSize="inherit" />
+              </IconButton>
+            </div>
+          ) : null}
+        </div>
       </div>
       <div className="flex flex-col gap-4 p-4">
         <Accordion
