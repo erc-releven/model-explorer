@@ -119,7 +119,7 @@ export function XmlLoader({
   return (
     <div
       aria-label="XML loader"
-      className="rounded-panel bg-surface-alt px-3 py-2 text-text-strong"
+      className="rounded-panel px-3 py-2 text-text-strong"
       onClick={preventAccordionToggle}
       onFocus={preventAccordionToggle}
       onMouseDown={preventAccordionToggle}
@@ -173,7 +173,7 @@ export function XmlLoader({
             >
               Load Pathbuilder File
             </Typography>
-            <Button component="label" disabled={isLoading} size="small" variant="contained">
+            <Button component="label" disabled={isLoading} size="small" variant="outlined">
               Upload XML
               <input
                 accept=".xml,text/xml,application/xml"
@@ -187,7 +187,7 @@ export function XmlLoader({
             <Button
               disabled={isLoading}
               size="small"
-              variant="contained"
+              variant="outlined"
               onClick={() => {
                 setIsUrlDialogOpen(true);
               }}
@@ -308,7 +308,7 @@ export function XmlLoader({
           </Button>
           <Button
             disabled={isLoading || urlInput.trim().length === 0}
-            variant="contained"
+            variant="outlined"
             onClick={() => {
               onLoadFromUrl();
             }}

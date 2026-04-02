@@ -5,7 +5,11 @@ import {
   getTopExpansionOptions,
   type PathNodeExpansionOption,
 } from "../components/ModelViewer/graph/expansion-options";
-import { resolveTargetPathForNodePath, stringifyPath } from "../components/ModelViewer/graph/graph-paths";
+import {
+  resolveTargetPathForNodePath,
+  resolveTransitionLabelForNodePath,
+  stringifyPath,
+} from "../components/ModelViewer/graph/graph-paths";
 
 export interface PathNodeData extends Record<string, unknown> {
   bottomExpansionOptions: Array<PathNodeExpansionOption>;
@@ -145,7 +149,7 @@ function createEdgeForNode(
     return {
       data: childPath.entity_reference == null ? undefined : { entityReferencePath: childPath },
       id: `${stringifyPath(parentPath)}->${stringifyPath(nodePath)}`,
-      label: childPath.entity_reference == null ? undefined : childPath.name,
+      label: resolveTransitionLabelForNodePath(pathbuilder, nodePath, parentTargetPath),
       source: stringifyPath(parentPath),
       sourceHandle: "bottom",
       target: stringifyPath(nodePath),
@@ -163,7 +167,7 @@ function createEdgeForNode(
     return {
       data: referencePath == null ? undefined : { entityReferencePath: referencePath },
       id: `${stringifyPath(nodePath)}->${stringifyPath(parentPath)}`,
-      label: referencePath?.name,
+      label: resolveTransitionLabelForNodePath(pathbuilder, nodePath, parentTargetPath),
       source: stringifyPath(nodePath),
       sourceHandle: "bottom",
       target: stringifyPath(parentPath),

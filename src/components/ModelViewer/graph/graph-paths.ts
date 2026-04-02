@@ -74,3 +74,32 @@ export function resolveTargetPathForNodePath(
 
   return currentPath;
 }
+
+export function resolveTransitionLabelForNodePath(
+  pathbuilder: Pathbuilder,
+  nodePath: Array<string>,
+  parentTargetPath: PathbuilderPath,
+): string | undefined {
+  const direction = nodePath.at(-2);
+  const segment = nodePath.at(-1);
+
+  if (direction == null || segment == null) {
+    return undefined;
+  }
+
+  if (direction === ">") {
+    const childPath = parentTargetPath.children[segment];
+
+    return childPath?.entity_reference == null ? undefined : childPath.name;
+  }
+
+  if (direction !== "<") {
+    return undefined;
+  }
+
+  if (!parentTargetPath.references.includes(segment)) {
+    return undefined;
+  }
+
+  return pathbuilder.getPathById(segment)?.name;
+}

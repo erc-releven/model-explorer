@@ -31,6 +31,8 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   const bottomVisibleCount = useMemo(() => {
     return actionableBottomOptions.filter((option) => option.visible).length;
   }, [actionableBottomOptions]);
+  const hasTopMenu = data.topExpansionOptions.length > 1;
+  const hasBottomMenu = data.bottomExpansionOptions.length > 1;
   const allTopVisible =
     actionableTopOptions.length > 0 && topVisibleCount === actionableTopOptions.length;
   const allBottomVisible =
@@ -62,7 +64,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
       return;
     }
 
-    if (actionableTopOptions.length === 1) {
+    if (!hasTopMenu && actionableTopOptions.length === 1) {
       data.onToggleTopOption(data.id_array, actionableTopOptions[0]!.path);
       return;
     }
@@ -82,7 +84,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
       return;
     }
 
-    if (actionableBottomOptions.length === 1) {
+    if (!hasBottomMenu && actionableBottomOptions.length === 1) {
       data.onToggleBottomOption(data.id_array, actionableBottomOptions[0]!.path);
       return;
     }
@@ -183,7 +185,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           </Button>
         </HoverTooltip>
       ) : null}
-      {actionableTopOptions.length > 1 ? (
+      {hasTopMenu ? (
         <ExpansionMenu
           anchorEl={topAnchor}
           open={topAnchor != null}
@@ -203,7 +205,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           }}
         />
       ) : null}
-      {actionableBottomOptions.length > 1 ? (
+      {hasBottomMenu ? (
         <ExpansionMenu
           anchorEl={bottomAnchor}
           open={bottomAnchor != null}

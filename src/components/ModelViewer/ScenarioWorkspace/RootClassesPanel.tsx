@@ -156,9 +156,9 @@ export function RootClassesPanel({
   }, [instanceCountByPathId, pathsWithReferences]);
 
   return (
-    <div className="rounded-panel bg-surface-alt p-3 text-text-strong">
+    <div className="rounded-panel p-3 text-text-strong">
       {pathsWithReferences.length > 0 ? (
-        <div className="w-full rounded-panel border border-ui-border">
+        <div className="w-full rounded-panel">
           <DataGrid
             autosizeOnMount
             autosizeOptions={{ expand: false, includeHeaders: true }}
