@@ -2,6 +2,8 @@
 
 Releven Model Explorer is a browser-based tool for exploring Pathbuilder XML models, selecting nodes in the graph, and generating SPARQL queries and Python/Pydantic model skeletons from those selections. The web UI also lets you load saved scenarios, inspect root classes, and run the generated SPARQL against an endpoint.
 
+Current limitation: the SPARQL config option `omit path prefixes unless explicitly selected` is present in the UI and scenario state, but is not implemented yet in the serializers.
+
 ## Web App
 
 Start the local app with:

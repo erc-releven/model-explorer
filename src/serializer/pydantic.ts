@@ -7,6 +7,8 @@ type PydanticCompiler = (tree: ModelSubgraphAst) => string;
 
 export interface PydanticProcessorConfig {
   leafType?: string;
+  makeAllFieldsOptional?: boolean;
+  makeEntityReferencesOptional?: boolean;
   rootModelName?: string;
 }
 
@@ -17,6 +19,7 @@ interface PydanticUnifiedProcessor {
 
 interface SelectedTreeNode {
   children: Array<SelectedTreeNode>;
+  isOptional: boolean;
   node: ModelAstNode;
 }
 
@@ -65,14 +68,28 @@ function createClassNameFromNode(node: ModelAstNode): string {
   return `${toPascalCase(idString)}Model`;
 }
 
-function collectSelectedForest(nodes: Array<ModelAstNode>): Array<SelectedTreeNode> {
+function collectSelectedForest(
+  nodes: Array<ModelAstNode>,
+  currentOptional: boolean,
+  makeAllFieldsOptional: boolean,
+  makeEntityReferencesOptional: boolean,
+): Array<SelectedTreeNode> {
   const selectedTree: Array<SelectedTreeNode> = [];
 
   for (const node of nodes) {
-    const selectedChildren = collectSelectedForest(node.children);
+    const nodeIsOptional =
+      currentOptional ||
+      (makeAllFieldsOptional && node.data.id_array.length > 1) ||
+      (makeEntityReferencesOptional && node.data.enteredThroughEntityReference);
+    const selectedChildren = collectSelectedForest(
+      node.children,
+      node.data.selected == null ? nodeIsOptional : false,
+      makeAllFieldsOptional,
+      makeEntityReferencesOptional,
+    );
 
     if (node.data.selected != null) {
-      selectedTree.push({ children: selectedChildren, node });
+      selectedTree.push({ children: selectedChildren, isOptional: nodeIsOptional, node });
       continue;
     }
 
@@ -92,8 +109,27 @@ function visitSelectedTree(
   }
 }
 
+function getSelectedTreeNodeFieldType(
+  treeNode: SelectedTreeNode,
+  classNameByNodeId: Map<string, string>,
+  leafType: string,
+): string {
+  const childClassName = classNameByNodeId.get(treeNode.node.data.id);
+
+  if (treeNode.children.length > 0 && childClassName != null) {
+    return childClassName;
+  }
+
+  return treeNode.node.data.selectedEntityReferenceNode ? "AnyUrl" : leafType;
+}
+
 function compileAstToPydantic(tree: ModelSubgraphAst, config: PydanticProcessorConfig): string {
-  const selectedForest = collectSelectedForest(tree.children);
+  const selectedForest = collectSelectedForest(
+    tree.children,
+    false,
+    config.makeAllFieldsOptional ?? false,
+    config.makeEntityReferencesOptional ?? false,
+  );
   const leafType = config.leafType ?? "str";
   const rootModelName = config.rootModelName ?? "SelectedModel";
 
@@ -103,10 +139,20 @@ function compileAstToPydantic(tree: ModelSubgraphAst, config: PydanticProcessorC
 
   const classNameByNodeId = new Map<string, string>();
   const nodesWithChildren = new Map<string, SelectedTreeNode>();
+  let hasOptionalFields = false;
+  let usesAnyUrl = false;
 
   visitSelectedTree(selectedForest, (treeNode) => {
     const nodeId = treeNode.node.data.id;
     classNameByNodeId.set(nodeId, createClassNameFromNode(treeNode.node));
+
+    if (treeNode.isOptional) {
+      hasOptionalFields = true;
+    }
+
+    if (treeNode.node.data.selectedEntityReferenceNode && treeNode.children.length === 0) {
+      usesAnyUrl = true;
+    }
 
     if (treeNode.children.length > 0) {
       nodesWithChildren.set(nodeId, treeNode);
@@ -135,11 +181,11 @@ function compileAstToPydantic(tree: ModelSubgraphAst, config: PydanticProcessorC
 
       usedFieldNames.add(fieldName);
 
-      const childClassName = classNameByNodeId.get(child.node.data.id);
-      const fieldType =
-        child.children.length > 0 && childClassName != null ? childClassName : leafType;
+      const fieldType = getSelectedTreeNodeFieldType(child, classNameByNodeId, leafType);
+      const renderedFieldType = child.isOptional ? `Optional[${fieldType}]` : fieldType;
+      const defaultValue = child.isOptional ? " = None" : "";
 
-      return `    ${fieldName}: ${fieldType}`;
+      return `    ${fieldName}: ${renderedFieldType}${defaultValue}`;
     });
 
     classBlocks.push(`class ${className}(BaseModel):\n${fields.join("\n")}`);
@@ -158,17 +204,18 @@ function compileAstToPydantic(tree: ModelSubgraphAst, config: PydanticProcessorC
 
     rootUsedNames.add(fieldName);
 
-    const rootClassName = classNameByNodeId.get(rootNode.node.data.id);
-    const rootType =
-      rootNode.children.length > 0 && rootClassName != null ? rootClassName : leafType;
+    const rootType = getSelectedTreeNodeFieldType(rootNode, classNameByNodeId, leafType);
+    const renderedRootType = rootNode.isOptional ? `Optional[${rootType}]` : rootType;
+    const defaultValue = rootNode.isOptional ? " = None" : "";
 
-    return `    ${fieldName}: ${rootType}`;
+    return `    ${fieldName}: ${renderedRootType}${defaultValue}`;
   });
 
   return [
     "from __future__ import annotations",
     "",
-    "from pydantic import BaseModel",
+    ...(hasOptionalFields ? ["from typing import Optional", ""] : []),
+    `from pydantic import BaseModel${usesAnyUrl ? ", AnyUrl" : ""}`,
     "",
     ...classBlocks.flatMap((block) => [block, ""]),
     `class ${rootModelName}(BaseModel):`,
@@ -203,5 +250,10 @@ export function serializeModelStateToPydantic(
   config: PydanticProcessorConfig = {},
 ): string {
   const ast = createSelectedSubgraphAst(modelState, pathbuilder);
-  return createPydanticProcessor(config).processSync(ast);
+  return createPydanticProcessor({
+    ...config,
+    makeAllFieldsOptional: config.makeAllFieldsOptional ?? modelState.sparql.makeAllFieldsOptional,
+    makeEntityReferencesOptional:
+      config.makeEntityReferencesOptional ?? modelState.sparql.makeEntityReferencesOptional,
+  }).processSync(ast);
 }

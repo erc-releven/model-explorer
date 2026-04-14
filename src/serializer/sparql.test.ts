@@ -610,4 +610,49 @@ describe("serializeScenarioToSparql", () => {
     expect(subselect?.type).toBe("query");
     expect("group" in (subselect ?? {})).toBe(false);
   });
+
+  test("wraps entity-reference selections in OPTIONAL blocks when configured", () => {
+    const pathbuilder = loadDefaultPathbuilder();
+    const scenario = createScenarioFromSelections(pathbuilder, [
+      "g_external_authority_has_member_assertion > p_external_authority_has_member_is",
+    ]);
+    scenario.sparql = {
+      ...scenario.sparql,
+      makeEntityReferencesOptional: true,
+    };
+    const parsedQuery = new SparqlParser().parse(
+      serializeScenarioToSparql(scenario, pathbuilder),
+    ) as {
+      where?: Array<unknown>;
+    };
+    const optionalPatterns = (parsedQuery.where ?? []).filter((pattern) => {
+      return asRecord(pattern)?.type === "optional";
+    });
+
+    expect(optionalPatterns.length).toBeGreaterThan(0);
+  });
+
+  test("comments out intermediate unselected variables in the SELECT clause", () => {
+    const pathbuilder = loadDefaultPathbuilder();
+    const scenario = createScenarioFromSelections(pathbuilder, ["g_person > p_person_display_name"]);
+    const query = serializeScenarioToSparql(scenario, pathbuilder);
+
+    expect(query).toMatch(/SELECT\n\s*#\?\w+/);
+  });
+
+  test("wraps all non-root traversals in OPTIONAL blocks when configured", () => {
+    const pathbuilder = loadDefaultPathbuilder();
+    const scenario = createScenarioFromSelections(pathbuilder, [
+      "g_person > g_person_birth_of_person > g_person_birth_of_person_date_of_birth_assertion",
+    ]);
+    scenario.sparql = {
+      ...scenario.sparql,
+      makeEntityReferencesOptional: true,
+      makeAllFieldsOptional: true,
+    };
+    const query = serializeScenarioToSparql(scenario, pathbuilder);
+    const optionalCount = (query.match(/\bOPTIONAL \{/g) ?? []).length;
+
+    expect(optionalCount).toBeGreaterThanOrEqual(2);
+  });
 });

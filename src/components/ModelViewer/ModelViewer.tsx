@@ -36,6 +36,8 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
   const [isSparqlLoading, setIsSparqlLoading] = useState(false);
   const [sparqlDurationMs, setSparqlDurationMs] = useState<null | number>(null);
   const [sparqlPayloadBytes, setSparqlPayloadBytes] = useState<null | number>(null);
+  const [sparqlTruncatedLineCount, setSparqlTruncatedLineCount] = useState(0);
+  const [isSparqlResultTruncated, setIsSparqlResultTruncated] = useState(false);
   const graphViewerRef = useRef<HTMLDivElement | null>(null);
   const resultsSummaryRef = useRef<HTMLDivElement | null>(null);
   const sparqlAbortController = useRef<AbortController | null>(null);
@@ -218,6 +220,8 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
     setSparqlError(null);
     setSparqlDurationMs(null);
     setSparqlPayloadBytes(null);
+    setSparqlTruncatedLineCount(0);
+    setIsSparqlResultTruncated(false);
 
     try {
       const executionResult = await executeSparqlQuery(
@@ -230,12 +234,16 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
       setSparqlError(null);
       setSparqlDurationMs(executionResult.durationMs);
       setSparqlPayloadBytes(executionResult.payloadBytes);
+      setSparqlTruncatedLineCount(executionResult.truncatedLineCount);
+      setIsSparqlResultTruncated(executionResult.truncated);
     } catch (error: unknown) {
       if (controller.signal.aborted) {
         setSparqlError("Query cancelled.");
         setSparqlResult(null);
         setSparqlDurationMs(null);
         setSparqlPayloadBytes(null);
+        setSparqlTruncatedLineCount(0);
+        setIsSparqlResultTruncated(false);
         return;
       }
 
@@ -243,6 +251,8 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
       setSparqlResult(null);
       setSparqlDurationMs(null);
       setSparqlPayloadBytes(null);
+      setSparqlTruncatedLineCount(0);
+      setIsSparqlResultTruncated(false);
     } finally {
       if (sparqlAbortController.current === controller) {
         setIsSparqlLoading(false);
@@ -312,6 +322,8 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
             payloadSizeBytes={sparqlPayloadBytes}
             queryDurationMs={sparqlDurationMs}
             result={sparqlResult}
+            truncatedLineCount={sparqlTruncatedLineCount}
+            resultTruncated={isSparqlResultTruncated}
           />
         </AccordionDetails>
       </Accordion>

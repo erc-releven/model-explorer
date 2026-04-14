@@ -282,6 +282,8 @@ function compileAstToSparql(
 
   const shouldDisregardNonRootNodeTypes = config.sparql.disregardTypesOfNonRootNodes;
   const shouldCountDistinct = config.sparql.countDistinct;
+  const shouldMakeAllFieldsOptional = config.sparql.makeAllFieldsOptional;
+  const shouldMakeEntityReferenceSubtreesOptional = config.sparql.makeEntityReferencesOptional;
   const shouldIncludeZeroCountResults = config.sparql.includeZeroCountResults;
   const { allNodes, nodeVariableById } = createNodeVariableMaps(tree);
   const indentLevelByNodeId = new Map(
@@ -469,6 +471,19 @@ function compileAstToSparql(
     const upwardChildren = node.children.filter((child) => isUpwardChildNode(child, node));
     const downwardChildren = node.children.filter((child) => !isUpwardChildNode(child, node));
     let nextParentContext = parentContext;
+    const shouldWrapInOptional =
+      parent != null &&
+      (shouldMakeAllFieldsOptional ||
+        (shouldMakeEntityReferenceSubtreesOptional &&
+          node.data.parentEdgeEntityReferencePath != null));
+    const optionalIndent = "  ".repeat((normalizedIndentDepthByNodeId.get(nodeId) ?? 0) + 1);
+
+    if (shouldWrapInOptional) {
+      whereStatements.push({
+        line: `${optionalIndent}OPTIONAL {`,
+        nodeId,
+      });
+    }
 
     let upwardLinkVariable: undefined | string;
     for (const upwardChild of upwardChildren) {
@@ -501,6 +516,13 @@ function compileAstToSparql(
       emitNodeWithOrderedEdges(downwardChild, node, nodeContext);
     }
 
+    if (shouldWrapInOptional) {
+      whereStatements.push({
+        line: `${optionalIndent}}`,
+        nodeId,
+      });
+    }
+
     return nodeVariable;
   }
 
@@ -524,8 +546,7 @@ function compileAstToSparql(
       firstWhereIndentByNodeId.set(statement.nodeId, /^\s*/.exec(statement.line)?.[0] ?? "");
     }
   }
-  const selectedNodeIdsInWhereOrder = allNodes
-    .filter(({ node }) => node.data.selected != null)
+  const nodeIdsInWhereOrder = allNodes
     .map(({ node }) => stringifyPath(node.data.id_array))
     .sort((leftNodeId, rightNodeId) => {
       const leftIndex = firstWhereIndexByNodeId.get(leftNodeId) ?? Number.MAX_SAFE_INTEGER;
@@ -544,22 +565,35 @@ function compileAstToSparql(
 
       return leftNodeId.localeCompare(rightNodeId);
     });
-  const selectVariables = selectedNodeIdsInWhereOrder.map((nodeId) => {
+  const selectedNodeIdsInWhereOrder = nodeIdsInWhereOrder.filter((nodeId) => {
+    return nodeById.get(nodeId)?.data.selected != null;
+  });
+  const selectVariables = nodeIdsInWhereOrder.map((nodeId) => {
     const node = nodeById.get(nodeId);
     const variable = nodeVariableById.get(nodeId) ?? "?v";
     const indentDepth = normalizedIndentDepthByNodeId.get(nodeId) ?? 0;
     const whereIndent = firstWhereIndentByNodeId.get(nodeId);
+    const isSelected = node?.data.selected != null;
 
     return {
+      commentedOut: !isSelected,
       variable: node?.data.selected === "count" ? `${variable}_count` : variable,
       indentDepth,
       indent: whereIndent ?? "  ".repeat(indentDepth + 1),
     };
   });
   const selectClause =
-    selectVariables.length === 0
+    selectedNodeIdsInWhereOrder.length === 0
       ? "SELECT *"
-      : `SELECT\n${selectVariables.map(({ indent, variable }) => `${indent}${variable}`).join("\n")}`;
+      : `SELECT\n${selectVariables
+          .map(({ commentedOut, indent, variable }) => {
+            const commentedIndent = indent.length >= 1 ? indent.slice(0, -1) : "";
+
+            return commentedOut
+              ? `${commentedIndent}#${variable}`
+              : `${indent}${variable}`;
+          })
+          .join("\n")}`;
 
   const countNodeIds = allNodes
     .filter(({ node }) => node.data.selected === "count")

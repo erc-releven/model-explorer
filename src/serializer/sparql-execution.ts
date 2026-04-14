@@ -3,6 +3,73 @@ export interface SparqlExecutionResult {
   durationMs: number;
   payloadBytes: number;
   result: string;
+  truncatedLineCount: number;
+  truncated: boolean;
+}
+
+const maxStoredPayloadBytes = 50_000_000;
+
+async function readResponseTextSafely(response: Response): Promise<{
+  payloadBytes: number;
+  text: string;
+  truncatedLineCount: number;
+  truncated: boolean;
+}> {
+  if (response.body == null) {
+    const text = await response.text();
+
+    return {
+      payloadBytes: new TextEncoder().encode(text).length,
+      text,
+      truncatedLineCount: 0,
+      truncated: false,
+    };
+  }
+
+  const reader = response.body.getReader();
+  const lineCountDecoder = new TextDecoder();
+  const previewDecoder = new TextDecoder();
+  const chunks: Array<string> = [];
+  let payloadBytes = 0;
+  let storedBytes = 0;
+  let newlineCount = 0;
+  let truncated = false;
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    payloadBytes += value.byteLength;
+    newlineCount += lineCountDecoder.decode(value, { stream: true }).split("\n").length - 1;
+
+    if (storedBytes < maxStoredPayloadBytes) {
+      const remainingBytes = maxStoredPayloadBytes - storedBytes;
+      const chunkToStore =
+        value.byteLength <= remainingBytes ? value : value.subarray(0, remainingBytes);
+
+      chunks.push(previewDecoder.decode(chunkToStore, { stream: true }));
+      storedBytes += chunkToStore.byteLength;
+    }
+
+    if (storedBytes >= maxStoredPayloadBytes) {
+      truncated = true;
+    }
+  }
+
+  chunks.push(previewDecoder.decode());
+  const text = chunks.join("");
+  const previewLineCount = text.length === 0 ? 0 : text.split("\n").length;
+  const totalLineCount = payloadBytes === 0 ? 0 : newlineCount + 1;
+
+  return {
+    payloadBytes,
+    text,
+    truncatedLineCount: truncated ? Math.max(0, totalLineCount - previewLineCount) : 0,
+    truncated,
+  };
 }
 
 export async function executeSparqlQuery(
@@ -31,10 +98,12 @@ export async function executeSparqlQuery(
     method: "POST",
     signal,
   });
-  const responseText = await response.text();
+  const { payloadBytes, text, truncated, truncatedLineCount } = await readResponseTextSafely(
+    response,
+  );
 
   if (!response.ok) {
-    throw new Error(`Query failed (${String(response.status)}): ${responseText}`);
+    throw new Error(`Query failed (${String(response.status)}): ${text}`);
   }
 
   const contentType = response.headers.get("content-type") ?? "";
@@ -42,10 +111,9 @@ export async function executeSparqlQuery(
   return {
     contentType,
     durationMs: performance.now() - startedAt,
-    payloadBytes: new TextEncoder().encode(responseText).length,
-    result:
-      contentType.includes("json") && responseText.length > 0
-        ? JSON.stringify(JSON.parse(responseText), null, 2)
-        : responseText,
+    payloadBytes,
+    result: text,
+    truncatedLineCount,
+    truncated,
   };
 }

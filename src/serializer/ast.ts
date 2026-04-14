@@ -5,9 +5,11 @@ import { createGraphFromScenario } from "./graph";
 import type { Pathbuilder, PathbuilderPath } from "./pathbuilder";
 
 interface AstNodeData {
+  enteredThroughEntityReference: boolean;
   id: string;
   id_array: Array<string>;
   parentEdgeEntityReferencePath?: PathbuilderPath;
+  selectedEntityReferenceNode: boolean;
   targetPath: PathbuilderPath;
   selected: NodeState["selected"];
 }
@@ -38,6 +40,46 @@ function toParentPath(path: Array<string>): Array<string> {
 
 function makeEdgeId(left: string, right: string): string {
   return left < right ? `${left}<->${right}` : `${right}<->${left}`;
+}
+
+function hasEntityReferenceTraversal(
+  pathbuilder: null | Pathbuilder,
+  idArray: Array<string>,
+): boolean {
+  if (pathbuilder == null) {
+    return false;
+  }
+
+  for (let index = 2; index < idArray.length; index += 2) {
+    const pathId = idArray[index];
+
+    if (pathId == null) {
+      continue;
+    }
+
+    if (pathbuilder.getPathById(pathId)?.entity_reference != null) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isSelectedEntityReferenceNode(
+  pathbuilder: null | Pathbuilder,
+  idArray: Array<string>,
+): boolean {
+  if (pathbuilder == null || idArray.length < 3) {
+    return false;
+  }
+
+  const lastPathId = idArray.at(-1);
+
+  if (lastPathId == null) {
+    return false;
+  }
+
+  return pathbuilder.getPathById(lastPathId)?.entity_reference != null;
 }
 
 function buildGraph(edges: Array<{ source: string; target: string; id: string }>): {
@@ -118,7 +160,9 @@ export function createSelectedSubgraphAst(
     modelState,
     pathbuilder,
     noopExpand,
+    noopExpand,
     noopSelect,
+    noopExpand,
     noopExpand,
   );
   const graphNodes = graph.nodes;
@@ -201,9 +245,14 @@ export function createSelectedSubgraphAst(
     astNodeById.set(node.id, {
       children: [],
       data: {
+        enteredThroughEntityReference: hasEntityReferenceTraversal(pathbuilder, node.data.id_array),
         id: node.id,
         id_array: node.data.id_array,
         parentEdgeEntityReferencePath: undefined,
+        selectedEntityReferenceNode: isSelectedEntityReferenceNode(
+          pathbuilder,
+          node.data.id_array,
+        ),
         selected: node.data.selected,
         targetPath: node.data.targetPath,
       },

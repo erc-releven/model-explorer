@@ -142,13 +142,13 @@ export function getTopExpansionOptions(
         relationLabel:
           previousVisiblePathOption != null &&
           isSameModelClass(optionTargetPath, previousVisiblePathOption.targetPath)
-            ? "outgoing"
+            ? ("outgoing" as const)
             : undefined,
         rdfType: optionTargetPath.rdf_type,
         visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
       };
     })
-    .filter((option): option is PathNodeExpansionOption => option != null)
+    .filter((option): option is NonNullable<typeof option> => option != null)
     .filter((option) => {
       return !(
         previousVisiblePathOption != null &&
@@ -201,7 +201,7 @@ export function getBottomExpansionOptions(
       relationLabel:
         previousVisiblePathOption != null &&
         isSameModelClass(childPath, previousVisiblePathOption.targetPath)
-          ? "outgoing"
+          ? ("outgoing" as const)
           : undefined,
       rdfType: childPath.rdf_type,
       visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
