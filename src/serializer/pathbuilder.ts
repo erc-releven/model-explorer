@@ -103,7 +103,10 @@ function selectRdfType(pathArray: Array<string>): string {
   return "";
 }
 
-function getCommonPrefixLength(left: Array<string>, right: Array<string>): number {
+function getCommonPrefixLength(
+  left: Array<string>,
+  right: Array<string>,
+): number {
   const minLength = Math.min(left.length, right.length);
   let index = 0;
 
@@ -126,7 +129,8 @@ function parsePathbuilderPath(pathElement: Element): PathbuilderPath {
   return {
     group: groupId === "0" ? undefined : groupId,
     children: {},
-    entity_reference: isEntityReference && rdf_type.length > 0 ? rdf_type : undefined,
+    entity_reference:
+      isEntityReference && rdf_type.length > 0 ? rdf_type : undefined,
     first_own_statement: 0,
     id,
     name,
@@ -149,7 +153,9 @@ export function parsePathbuilderDocument(xmlDocument: Document): Pathbuilder {
   }
 
   const pathsById: Record<string, PathbuilderPath> = {};
-  const pathElements = xmlDocument.querySelectorAll("pathbuilderinterface > path");
+  const pathElements = xmlDocument.querySelectorAll(
+    "pathbuilderinterface > path",
+  );
 
   for (const pathElement of pathElements) {
     const pathbuilderPath = parsePathbuilderPath(pathElement);
@@ -163,7 +169,10 @@ export function parsePathbuilderDocument(xmlDocument: Document): Pathbuilder {
 
       if (parentPath != null) {
         parentPath.children[path.id] = path;
-        path.first_own_statement = getCommonPrefixLength(path.path_array, parentPath.path_array);
+        path.first_own_statement = getCommonPrefixLength(
+          path.path_array,
+          parentPath.path_array,
+        );
       }
     }
     if (path.entity_reference) {

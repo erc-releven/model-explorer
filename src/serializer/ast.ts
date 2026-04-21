@@ -82,7 +82,9 @@ function isSelectedEntityReferenceNode(
   return pathbuilder.getPathById(lastPathId)?.entity_reference != null;
 }
 
-function buildGraph(edges: Array<{ source: string; target: string; id: string }>): {
+function buildGraph(
+  edges: Array<{ source: string; target: string; id: string }>,
+): {
   adjacency: Map<string, Array<string>>;
   edgeNodesById: Map<string, [string, string]>;
 } {
@@ -98,7 +100,10 @@ function buildGraph(edges: Array<{ source: string; target: string; id: string }>
     childNeighbors.push(edge.source);
     adjacency.set(edge.target, childNeighbors);
 
-    edgeNodesById.set(makeEdgeId(edge.source, edge.target), [edge.source, edge.target]);
+    edgeNodesById.set(makeEdgeId(edge.source, edge.target), [
+      edge.source,
+      edge.target,
+    ]);
   }
 
   return { adjacency, edgeNodesById };
@@ -169,7 +174,9 @@ export function createSelectedSubgraphAst(
   const parentEntityReferencePathByEdgeId = new Map<string, PathbuilderPath>();
 
   for (const edge of graph.edges) {
-    const edgeData = edge.data as { entityReferencePath?: PathbuilderPath } | undefined;
+    const edgeData = edge.data as
+      | { entityReferencePath?: PathbuilderPath }
+      | undefined;
 
     if (edgeData?.entityReferencePath == null) {
       continue;
@@ -181,9 +188,13 @@ export function createSelectedSubgraphAst(
     );
   }
   const graphNodeById = new Map(graphNodes.map((node) => [node.id, node]));
-  const firstSelectedScenarioNode = modelState.nodes.find((node) => node.selected != null);
+  const firstSelectedScenarioNode = modelState.nodes.find(
+    (node) => node.selected != null,
+  );
   const firstSelectedNodeId =
-    firstSelectedScenarioNode == null ? undefined : stringifyPath(firstSelectedScenarioNode.id);
+    firstSelectedScenarioNode == null
+      ? undefined
+      : stringifyPath(firstSelectedScenarioNode.id);
   const selectedNodeIds = graphNodes
     .filter((node) => node.data.selected != null)
     .map((node) => node.id);
@@ -238,14 +249,19 @@ export function createSelectedSubgraphAst(
     }
   }
 
-  const includedNodes = graphNodes.filter((node) => includedNodeIds.has(node.id));
+  const includedNodes = graphNodes.filter((node) =>
+    includedNodeIds.has(node.id),
+  );
   const astNodeById = new Map<string, ModelAstNode>();
 
   for (const node of includedNodes) {
     astNodeById.set(node.id, {
       children: [],
       data: {
-        enteredThroughEntityReference: hasEntityReferenceTraversal(pathbuilder, node.data.id_array),
+        enteredThroughEntityReference: hasEntityReferenceTraversal(
+          pathbuilder,
+          node.data.id_array,
+        ),
         id: node.id,
         id_array: node.data.id_array,
         parentEdgeEntityReferencePath: undefined,
@@ -294,12 +310,17 @@ export function createSelectedSubgraphAst(
         continue;
       }
 
-      const neighbors = [...(adjacency.get(currentNodeId) ?? [])].sort((left, right) => {
-        return left.localeCompare(right);
-      });
+      const neighbors = [...(adjacency.get(currentNodeId) ?? [])].sort(
+        (left, right) => {
+          return left.localeCompare(right);
+        },
+      );
 
       for (const neighborNodeId of neighbors) {
-        if (!includedNodeIds.has(neighborNodeId) || visitedNodeIds.has(neighborNodeId)) {
+        if (
+          !includedNodeIds.has(neighborNodeId) ||
+          visitedNodeIds.has(neighborNodeId)
+        ) {
           continue;
         }
 
@@ -310,8 +331,12 @@ export function createSelectedSubgraphAst(
         }
 
         neighborAstNode.data.parentEdgeEntityReferencePath =
-          parentEntityReferencePathByEdgeId.get(`${currentNodeId}->${neighborNodeId}`) ??
-          parentEntityReferencePathByEdgeId.get(`${neighborNodeId}->${currentNodeId}`);
+          parentEntityReferencePathByEdgeId.get(
+            `${currentNodeId}->${neighborNodeId}`,
+          ) ??
+          parentEntityReferencePathByEdgeId.get(
+            `${neighborNodeId}->${currentNodeId}`,
+          );
         currentAstNode.children.push(neighborAstNode);
         visitedNodeIds.add(neighborNodeId);
         queue.push(neighborNodeId);
@@ -352,7 +377,9 @@ export function createSelectedSubgraphAst(
   });
 
   for (const astNode of astNodeById.values()) {
-    astNode.children.sort((left, right) => left.data.id.localeCompare(right.data.id));
+    astNode.children.sort((left, right) =>
+      left.data.id.localeCompare(right.data.id),
+    );
   }
 
   return {

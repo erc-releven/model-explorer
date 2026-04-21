@@ -69,7 +69,10 @@ function parseOrderByState(
   const normalizedValue = value?.trim();
 
   if (normalizedValue != null && normalizedValue.length > 0) {
-    return [normalizedValue, (direction === "DESC" ? "DESC" : "ASC") as OrderByDirection];
+    return [
+      normalizedValue,
+      (direction === "DESC" ? "DESC" : "ASC") as OrderByDirection,
+    ];
   }
 
   return undefined;
@@ -81,17 +84,27 @@ export function parseModelStateFromSearch(search: string): Scenario {
   const nodes = parseNodeStateList(params.getAll("nodes"));
   const limitParam = params.get("limit");
   const parsedLimit =
-    limitParam == null || limitParam.length === 0 ? undefined : Number.parseInt(limitParam, 10);
+    limitParam == null || limitParam.length === 0
+      ? undefined
+      : Number.parseInt(limitParam, 10);
   const sparql = normalizeSparqlConfig({
     omitPathPrefixesUnlessExplicitlySelected: parseBooleanParam(
       params.get("omitPathPrefixesUnlessExplicitlySelected"),
     ),
     countDistinct: parseBooleanParam(params.get("countDistinct")),
-    disregardTypesOfNonRootNodes: parseBooleanParam(params.get("disregardTypesOfNonRootNodes")),
-    includeZeroCountResults: parseBooleanParam(params.get("includeZeroCountResults")),
+    disregardTypesOfNonRootNodes: parseBooleanParam(
+      params.get("disregardTypesOfNonRootNodes"),
+    ),
+    includeZeroCountResults: parseBooleanParam(
+      params.get("includeZeroCountResults"),
+    ),
     limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
-    makeAllFieldsOptional: parseBooleanParam(params.get("makeAllFieldsOptional")),
-    makeEntityReferencesOptional: parseBooleanParam(params.get("makeEntityReferencesOptional")),
+    makeAllFieldsOptional: parseBooleanParam(
+      params.get("makeAllFieldsOptional"),
+    ),
+    makeEntityReferencesOptional: parseBooleanParam(
+      params.get("makeEntityReferencesOptional"),
+    ),
     namedGraph: params.get("namedGraph") ?? undefined,
     orderBy: parseOrderByState(params.get("orderBy"), params.get("direction")),
   });
@@ -130,8 +143,14 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
     );
   }
 
-  if (modelState.sparql.makeAllFieldsOptional !== defaultSparqlConfig.makeAllFieldsOptional) {
-    params.set("makeAllFieldsOptional", String(modelState.sparql.makeAllFieldsOptional));
+  if (
+    modelState.sparql.makeAllFieldsOptional !==
+    defaultSparqlConfig.makeAllFieldsOptional
+  ) {
+    params.set(
+      "makeAllFieldsOptional",
+      String(modelState.sparql.makeAllFieldsOptional),
+    );
   }
 
   if (
@@ -148,8 +167,14 @@ export function serializeModelStateToSearch(modelState: Scenario): string {
     params.set("countDistinct", String(modelState.sparql.countDistinct));
   }
 
-  if (modelState.sparql.includeZeroCountResults !== defaultSparqlConfig.includeZeroCountResults) {
-    params.set("includeZeroCountResults", String(modelState.sparql.includeZeroCountResults));
+  if (
+    modelState.sparql.includeZeroCountResults !==
+    defaultSparqlConfig.includeZeroCountResults
+  ) {
+    params.set(
+      "includeZeroCountResults",
+      String(modelState.sparql.includeZeroCountResults),
+    );
   }
 
   if (modelState.sparql.namedGraph !== defaultSparqlConfig.namedGraph) {

@@ -7,7 +7,11 @@ interface HoverTooltipProps {
   title: TooltipProps["title"];
 }
 
-export function HoverTooltip({ children, placement, title }: HoverTooltipProps) {
+export function HoverTooltip({
+  children,
+  placement,
+  title,
+}: HoverTooltipProps) {
   return (
     <Tooltip arrow enterDelay={150} placement={placement} title={title}>
       {children}

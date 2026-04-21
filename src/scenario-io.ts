@@ -15,7 +15,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isStringArray(value: unknown): value is Array<string> {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+  return (
+    Array.isArray(value) && value.every((entry) => typeof entry === "string")
+  );
 }
 
 export function parseScenario(value: unknown): null | Scenario {
@@ -27,7 +29,8 @@ export function parseScenario(value: unknown): null | Scenario {
 
   if (
     nodes != null &&
-    (!Array.isArray(nodes) || nodes.some((node) => !isRecord(node) || !isStringArray(node.id)))
+    (!Array.isArray(nodes) ||
+      nodes.some((node) => !isRecord(node) || !isStringArray(node.id)))
   ) {
     return null;
   }
@@ -44,7 +47,9 @@ export function parseScenario(value: unknown): null | Scenario {
     isRecord(value.sparql) ? value.sparql : undefined,
   );
   const normalizedXmlSource =
-    typeof value.xmlSource === "string" ? value.xmlSource : defaultScenario.xmlSource;
+    typeof value.xmlSource === "string"
+      ? value.xmlSource
+      : defaultScenario.xmlSource;
 
   return {
     nodes: normalizedNodes,

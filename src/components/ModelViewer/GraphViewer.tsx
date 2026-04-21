@@ -39,7 +39,7 @@ export function GraphViewer({
   return (
     <div
       aria-label="Graph viewer"
-      className="panel relative min-h-panel flex-1 overflow-hidden"
+      className="panel relative min-h-panel max-h-screen flex-1 overflow-hidden"
     >
       <ReactFlowProvider>
         <GraphCanvas

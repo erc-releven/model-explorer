@@ -1,7 +1,18 @@
 import type { Edge } from "@xyflow/react";
-import { type Dispatch, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type Dispatch,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { createDefaultNodeState, type Scenario, type ScenarioAction } from "../../../scenario";
+import {
+  createDefaultNodeState,
+  type Scenario,
+  type ScenarioAction,
+} from "../../../scenario";
 import type { Pathbuilder } from "../../../serializer/pathbuilder";
 import { fetchCountForNodePath } from "../../../serializer/sparql-query";
 import { graphEdgeColors, graphNodeBorderColors } from "../../../theme/colors";
@@ -15,7 +26,10 @@ interface UseGraphTreeParams {
 }
 
 function areNodePathsEqual(left: Array<string>, right: Array<string>): boolean {
-  return left.length === right.length && left.every((part, index) => part === right[index]);
+  return (
+    left.length === right.length &&
+    left.every((part, index) => part === right[index])
+  );
 }
 
 function hasPrefix(path: Array<string>, prefix: Array<string>): boolean {
@@ -74,7 +88,10 @@ function getConnectedSelectedEdgeIds(
     return edgeIds;
   }
 
-  const adjacency = new Map<string, Array<{ edgeId: string; nodeId: string }>>();
+  const adjacency = new Map<
+    string,
+    Array<{ edgeId: string; nodeId: string }>
+  >();
 
   for (const edge of edges) {
     const sourceNeighbors = adjacency.get(edge.source) ?? [];
@@ -89,7 +106,10 @@ function getConnectedSelectedEdgeIds(
   for (const [sourceIndex, sourceNodeId] of selectedNodeIds.entries()) {
     const queue = [sourceNodeId];
     const visited = new Set([sourceNodeId]);
-    const previousByNode = new Map<string, { edgeId: string; nodeId: string }>();
+    const previousByNode = new Map<
+      string,
+      { edgeId: string; nodeId: string }
+    >();
 
     while (queue.length > 0) {
       const currentNodeId = queue.shift()!;
@@ -140,11 +160,18 @@ function getGreenEdgeIdsBehindCountNodes(
 ): Set<string> {
   const greenEdgeIds = new Set<string>();
 
-  if (rootNodeId == null || countNodeIds.length === 0 || connectedEdgeIds.size === 0) {
+  if (
+    rootNodeId == null ||
+    countNodeIds.length === 0 ||
+    connectedEdgeIds.size === 0
+  ) {
     return greenEdgeIds;
   }
 
-  const adjacency = new Map<string, Array<{ edgeId: string; nodeId: string }>>();
+  const adjacency = new Map<
+    string,
+    Array<{ edgeId: string; nodeId: string }>
+  >();
 
   for (const edge of edges) {
     const sourceNeighbors = adjacency.get(edge.source) ?? [];
@@ -172,7 +199,10 @@ function getGreenEdgeIdsBehindCountNodes(
 
       visited.add(neighbor.nodeId);
       parentByNode.set(neighbor.nodeId, currentNodeId);
-      depthByNode.set(neighbor.nodeId, (depthByNode.get(currentNodeId) ?? 0) + 1);
+      depthByNode.set(
+        neighbor.nodeId,
+        (depthByNode.get(currentNodeId) ?? 0) + 1,
+      );
       queue.push(neighbor.nodeId);
     }
   }
@@ -197,7 +227,11 @@ function getGreenEdgeIdsBehindCountNodes(
     const sourceDepth = depthByNode.get(edge.source);
     const targetDepth = depthByNode.get(edge.target);
 
-    if (sourceDepth == null || targetDepth == null || sourceDepth === targetDepth) {
+    if (
+      sourceDepth == null ||
+      targetDepth == null ||
+      sourceDepth === targetDepth
+    ) {
       continue;
     }
 
@@ -227,7 +261,9 @@ export function useGraphTree({
   pathbuilder,
 }: UseGraphTreeParams) {
   const lastExpandedNodeId = useRef<null | string>(null);
-  const previousSparqlConfigSerialized = useRef<string>(JSON.stringify(modelState.sparql));
+  const previousSparqlConfigSerialized = useRef<string>(
+    JSON.stringify(modelState.sparql),
+  );
   const [countByNodeId, setCountByNodeId] = useState<
     Record<string, { distinctCount: number; totalCount: number }>
   >({});
@@ -236,12 +272,16 @@ export function useGraphTree({
       function hasCountAncestor(path: Array<string>): boolean {
         return modelState.nodes.some((node) => {
           return (
-            node.selected === "count" && node.id.length < path.length && hasPrefix(path, node.id)
+            node.selected === "count" &&
+            node.id.length < path.length &&
+            hasPrefix(path, node.id)
           );
         });
       }
 
-      function clearCountNodesIfNoSelection(nodes: Scenario["nodes"]): Scenario["nodes"] {
+      function clearCountNodesIfNoSelection(
+        nodes: Scenario["nodes"],
+      ): Scenario["nodes"] {
         if (nodes.some((node) => node.selected === "value")) {
           return nodes;
         }
@@ -335,7 +375,9 @@ export function useGraphTree({
       }
 
       lastExpandedNodeId.current = idPath.join("");
-      const isVisible = modelState.nodes.some((node) => areNodePathsEqual(node.id, optionPath));
+      const isVisible = modelState.nodes.some((node) =>
+        areNodePathsEqual(node.id, optionPath),
+      );
       const nextNodes = isVisible
         ? removeVisibleSubtree(modelState.nodes, optionPath)
         : appendVisibleNodes(modelState.nodes, [optionPath]);
@@ -349,7 +391,11 @@ export function useGraphTree({
   );
 
   const onSetTopOptionsVisibility = useCallback(
-    (idPath: Array<string>, optionPaths: Array<Array<string>>, visible: boolean) => {
+    (
+      idPath: Array<string>,
+      optionPaths: Array<Array<string>>,
+      visible: boolean,
+    ) => {
       if (pathbuilder == null || optionPaths.length === 0) {
         return;
       }
@@ -372,7 +418,9 @@ export function useGraphTree({
       }
 
       lastExpandedNodeId.current = idPath.join("");
-      const isVisible = modelState.nodes.some((node) => areNodePathsEqual(node.id, optionPath));
+      const isVisible = modelState.nodes.some((node) =>
+        areNodePathsEqual(node.id, optionPath),
+      );
       const nextNodes = isVisible
         ? removeVisibleSubtree(modelState.nodes, optionPath)
         : appendVisibleNodes(modelState.nodes, [optionPath]);
@@ -386,7 +434,11 @@ export function useGraphTree({
   );
 
   const onSetBottomOptionsVisibility = useCallback(
-    (idPath: Array<string>, optionPaths: Array<Array<string>>, visible: boolean) => {
+    (
+      idPath: Array<string>,
+      optionPaths: Array<Array<string>>,
+      visible: boolean,
+    ) => {
       if (pathbuilder == null || optionPaths.length === 0) {
         return;
       }
@@ -424,9 +476,14 @@ export function useGraphTree({
       return baseGraph;
     }
 
-    const connectedSelectedEdgeIds = getConnectedSelectedEdgeIds(baseGraph.edges, selectedNodeIds);
+    const connectedSelectedEdgeIds = getConnectedSelectedEdgeIds(
+      baseGraph.edges,
+      selectedNodeIds,
+    );
     const rootNodeId =
-      modelState.nodes[0] == null ? undefined : stringifyPath(modelState.nodes[0].id);
+      modelState.nodes[0] == null
+        ? undefined
+        : stringifyPath(modelState.nodes[0].id);
     const greenEdgeIds = getGreenEdgeIdsBehindCountNodes(
       connectedSelectedEdgeIds,
       countNodeIds,
@@ -468,16 +525,22 @@ export function useGraphTree({
   useEffect(() => {
     const currentSparqlConfigSerialized = JSON.stringify(modelState.sparql);
 
-    if (previousSparqlConfigSerialized.current !== currentSparqlConfigSerialized) {
+    if (
+      previousSparqlConfigSerialized.current !== currentSparqlConfigSerialized
+    ) {
       previousSparqlConfigSerialized.current = currentSparqlConfigSerialized;
       setCountByNodeId({});
     }
 
-    const visibleNodeIds = new Set(modelState.nodes.map((node) => stringifyPath(node.id)));
+    const visibleNodeIds = new Set(
+      modelState.nodes.map((node) => stringifyPath(node.id)),
+    );
 
     setCountByNodeId((previousState) => {
       const nextState = Object.fromEntries(
-        Object.entries(previousState).filter(([nodeId]) => visibleNodeIds.has(nodeId)),
+        Object.entries(previousState).filter(([nodeId]) =>
+          visibleNodeIds.has(nodeId),
+        ),
       );
 
       return Object.keys(nextState).length === Object.keys(previousState).length

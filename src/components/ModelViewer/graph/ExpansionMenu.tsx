@@ -35,9 +35,13 @@ export function ExpansionMenu({
     ...options.filter((option) => option.relationLabel == null),
   ];
   const actionableOptions = options.filter((option) => !option.disabled);
-  const visibleCount = actionableOptions.filter((option) => option.visible).length;
-  const allVisible = actionableOptions.length > 0 && visibleCount === actionableOptions.length;
-  const partiallyVisible = visibleCount > 0 && visibleCount < actionableOptions.length;
+  const visibleCount = actionableOptions.filter(
+    (option) => option.visible,
+  ).length;
+  const allVisible =
+    actionableOptions.length > 0 && visibleCount === actionableOptions.length;
+  const partiallyVisible =
+    visibleCount > 0 && visibleCount < actionableOptions.length;
 
   function formatTooltipPath(path: Array<string>): string {
     return stringifyPath(path).replaceAll(">", " > ").replaceAll("<", " < ");
@@ -77,7 +81,11 @@ export function ExpansionMenu({
         </ListItemButton>
         <Divider />
         {orderedOptions.map((option) => (
-          <HoverTooltip key={option.id} placement="right" title={formatTooltipPath(option.path)}>
+          <HoverTooltip
+            key={option.id}
+            placement="right"
+            title={formatTooltipPath(option.path)}
+          >
             <div>
               <ListItemButton
                 dense
@@ -113,7 +121,9 @@ export function ExpansionMenu({
                     <div className="flex items-center gap-2">
                       <span>
                         {option.label}
-                        {option.relationLabel != null ? ` (${option.relationLabel})` : ""}
+                        {option.relationLabel != null
+                          ? ` (${option.relationLabel})`
+                          : ""}
                       </span>
                       <code className="rounded bg-surface-alt px-2 py-0.5 font-mono text-xs text-muted">
                         {abbreviateType(option.rdfType)}

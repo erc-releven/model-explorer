@@ -19,25 +19,38 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         : graphNodeBorderColors.default;
   const [topAnchor, setTopAnchor] = useState<HTMLElement | null>(null);
   const [bottomAnchor, setBottomAnchor] = useState<HTMLElement | null>(null);
-  const actionableTopOptions = useMemo(() => {
-    return data.topExpansionOptions.filter((option) => !option.disabled);
+  // All real connections, excluding phantom "incoming" mirror entries — used for rendering.
+  const displayTopOptions = useMemo(() => {
+    return data.topExpansionOptions.filter(
+      (option) => option.relationLabel !== "incoming",
+    );
   }, [data.topExpansionOptions]);
-  const actionableBottomOptions = useMemo(() => {
-    return data.bottomExpansionOptions.filter((option) => !option.disabled);
+  const displayBottomOptions = useMemo(() => {
+    return data.bottomExpansionOptions.filter(
+      (option) => option.relationLabel !== "incoming",
+    );
   }, [data.bottomExpansionOptions]);
+  // Subset of display options that can actually be toggled — excludes selection-locked ones.
+  const toggleableTopOptions = useMemo(() => {
+    return displayTopOptions.filter((option) => !option.disabled);
+  }, [displayTopOptions]);
+  const toggleableBottomOptions = useMemo(() => {
+    return displayBottomOptions.filter((option) => !option.disabled);
+  }, [displayBottomOptions]);
   const topVisibleCount = useMemo(() => {
-    return actionableTopOptions.filter((option) => option.visible).length;
-  }, [actionableTopOptions]);
+    return displayTopOptions.filter((option) => option.visible).length;
+  }, [displayTopOptions]);
   const bottomVisibleCount = useMemo(() => {
-    return actionableBottomOptions.filter((option) => option.visible).length;
-  }, [actionableBottomOptions]);
-  const hasTopMenu = data.topExpansionOptions.length > 1;
-  const hasBottomMenu = data.bottomExpansionOptions.length > 1;
+    return displayBottomOptions.filter((option) => option.visible).length;
+  }, [displayBottomOptions]);
+  const hasTopMenu = displayTopOptions.length > 1;
+  const hasBottomMenu = displayBottomOptions.length > 1;
   const allTopVisible =
-    actionableTopOptions.length > 0 && topVisibleCount === actionableTopOptions.length;
+    displayTopOptions.length > 0 &&
+    topVisibleCount === displayTopOptions.length;
   const allBottomVisible =
-    actionableBottomOptions.length > 0 &&
-    bottomVisibleCount === actionableBottomOptions.length;
+    displayBottomOptions.length > 0 &&
+    bottomVisibleCount === displayBottomOptions.length;
   const buttonSx = {
     bgcolor: "background.paper",
     borderColor: nodeBorderColor,
@@ -55,17 +68,17 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   function onOpenTopMenu(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation();
 
-    if (event.shiftKey && actionableTopOptions.length >= 2) {
+    if (event.shiftKey && toggleableTopOptions.length >= 2) {
       data.onSetTopOptionsVisibility(
         data.id_array,
-        actionableTopOptions.map((option) => option.path),
+        toggleableTopOptions.map((option) => option.path),
         !allTopVisible,
       );
       return;
     }
 
-    if (!hasTopMenu && actionableTopOptions.length === 1) {
-      data.onToggleTopOption(data.id_array, actionableTopOptions[0]!.path);
+    if (!hasTopMenu && toggleableTopOptions.length === 1) {
+      data.onToggleTopOption(data.id_array, toggleableTopOptions[0]!.path);
       return;
     }
 
@@ -75,17 +88,20 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   function onOpenBottomMenu(event: MouseEvent<HTMLButtonElement>): void {
     event.stopPropagation();
 
-    if (event.shiftKey && actionableBottomOptions.length >= 2) {
+    if (event.shiftKey && toggleableBottomOptions.length >= 2) {
       data.onSetBottomOptionsVisibility(
         data.id_array,
-        actionableBottomOptions.map((option) => option.path),
+        toggleableBottomOptions.map((option) => option.path),
         !allBottomVisible,
       );
       return;
     }
 
-    if (!hasBottomMenu && actionableBottomOptions.length === 1) {
-      data.onToggleBottomOption(data.id_array, actionableBottomOptions[0]!.path);
+    if (!hasBottomMenu && toggleableBottomOptions.length === 1) {
+      data.onToggleBottomOption(
+        data.id_array,
+        toggleableBottomOptions[0]!.path,
+      );
       return;
     }
 
@@ -95,13 +111,13 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
   return (
     <div>
       <HiddenHandle id="top" position={Position.Top} type="target" />
-      {actionableTopOptions.length > 0 ? (
+      {displayTopOptions.length > 0 ? (
         <HoverTooltip
           title={getExpansionTooltip(
             "top",
             topVisibleCount,
-            actionableTopOptions.length,
-            actionableTopOptions,
+            displayTopOptions.length,
+            displayTopOptions,
           )}
         >
           <Button
@@ -117,7 +133,11 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
             variant="outlined"
             onClick={onOpenTopMenu}
           >
-            {renderExpansionIcon("top", topVisibleCount, actionableTopOptions.length)}
+            {renderExpansionIcon(
+              "top",
+              topVisibleCount,
+              displayTopOptions.length,
+            )}
           </Button>
         </HoverTooltip>
       ) : null}
@@ -131,7 +151,9 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
         <div className="inline-block w-full">
           <div className="flex items-start justify-between gap-2 text-left">
             <HoverTooltip placement="top" title={data.id_array.join(" ")}>
-              <span className="block text-sm font-semibold">{data.targetPath.name}</span>
+              <span className="block text-sm font-semibold">
+                {data.targetPath.name}
+              </span>
             </HoverTooltip>
             <HoverTooltip
               placement="top"
@@ -155,13 +177,13 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           </code>
         </div>
       </div>
-      {actionableBottomOptions.length > 0 ? (
+      {displayBottomOptions.length > 0 ? (
         <HoverTooltip
           title={getExpansionTooltip(
             "bottom",
             bottomVisibleCount,
-            actionableBottomOptions.length,
-            actionableBottomOptions,
+            displayBottomOptions.length,
+            displayBottomOptions,
           )}
         >
           <Button
@@ -180,7 +202,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
             {renderExpansionIcon(
               "bottom",
               bottomVisibleCount,
-              actionableBottomOptions.length,
+              displayBottomOptions.length,
             )}
           </Button>
         </HoverTooltip>
@@ -196,7 +218,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           onToggleAll={(nextVisible) => {
             data.onSetTopOptionsVisibility(
               data.id_array,
-              actionableTopOptions.map((option) => option.path),
+              toggleableTopOptions.map((option) => option.path),
               nextVisible,
             );
           }}
@@ -216,7 +238,7 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
           onToggleAll={(nextVisible) => {
             data.onSetBottomOptionsVisibility(
               data.id_array,
-              actionableBottomOptions.map((option) => option.path),
+              toggleableBottomOptions.map((option) => option.path),
               nextVisible,
             );
           }}

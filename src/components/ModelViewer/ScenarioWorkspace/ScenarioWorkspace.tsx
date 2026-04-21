@@ -10,7 +10,13 @@ import {
   Tab,
   Tabs,
 } from "@mui/material";
-import { type Dispatch, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type Dispatch,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import type { Scenario, ScenarioAction } from "../../../scenario";
 import { parseNamedScenario, parseScenario } from "../../../scenario-io";
@@ -132,7 +138,9 @@ export function ScenarioWorkspace({
   const createTabValue = "action:create";
   const [activeTab, setActiveTab] = useState("current");
   const [isRootPanelExpanded, setIsRootPanelExpanded] = useState(true);
-  const [storedScenarios, setStoredScenarios] = useState<Array<StoredScenario>>([]);
+  const [storedScenarios, setStoredScenarios] = useState<Array<StoredScenario>>(
+    [],
+  );
   const lastXmlSource = useRef(scenario.xmlSource);
   const activeSavedScenarioName = activeTab.startsWith("saved:")
     ? activeTab.slice("saved:".length)
@@ -140,7 +148,9 @@ export function ScenarioWorkspace({
   const activeStoredScenario =
     activeSavedScenarioName == null
       ? null
-      : storedScenarios.find((entry) => entry.name === activeSavedScenarioName) ?? null;
+      : (storedScenarios.find(
+          (entry) => entry.name === activeSavedScenarioName,
+        ) ?? null);
   const hasVisibleRootModel = scenario.nodes.some((node) => {
     return node.id.length === 1;
   });
@@ -155,7 +165,10 @@ export function ScenarioWorkspace({
       return;
     }
 
-    window.localStorage.setItem(currentLocalStorageKey, JSON.stringify(scenario));
+    window.localStorage.setItem(
+      currentLocalStorageKey,
+      JSON.stringify(scenario),
+    );
   }, [activeTab, scenario]);
 
   useEffect(() => {
@@ -210,7 +223,9 @@ export function ScenarioWorkspace({
   }
 
   function onDeleteStoredScenario(name: string): void {
-    const nextStoredStates = storedScenarios.filter((entry) => entry.name !== name);
+    const nextStoredStates = storedScenarios.filter(
+      (entry) => entry.name !== name,
+    );
 
     setStoredScenarios(nextStoredStates);
     writeStoredScenarios(nextStoredStates);
@@ -252,7 +267,9 @@ export function ScenarioWorkspace({
               }
 
               const targetName = nextValue.slice("saved:".length);
-              const targetState = storedScenarios.find((entry) => entry.name === targetName);
+              const targetState = storedScenarios.find(
+                (entry) => entry.name === targetName,
+              );
 
               if (targetState == null) {
                 return;
@@ -274,7 +291,11 @@ export function ScenarioWorkspace({
           >
             <Tab label="current" value="current" />
             {storedScenarios.map((entry) => (
-              <Tab key={entry.name} label={entry.name} value={`saved:${entry.name}`} />
+              <Tab
+                key={entry.name}
+                label={entry.name}
+                value={`saved:${entry.name}`}
+              />
             ))}
             <Tab
               aria-label="Create named model state from current"

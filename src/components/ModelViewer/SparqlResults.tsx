@@ -1,5 +1,14 @@
-import { Chip, CircularProgress, ToggleButton, ToggleButtonGroup } from "@mui/material";
-import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
+import {
+  Chip,
+  CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@mui/material";
+import {
+  DataGrid,
+  type GridColDef,
+  type GridRenderCellParams,
+} from "@mui/x-data-grid";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { highlightCodeToHtml } from "./highlight";
@@ -70,7 +79,9 @@ function extractFetchErrorMessage(error: string): string {
   }
 }
 
-function getSortableCellValue(cell: SparqlBindingValue | undefined): number | string {
+function getSortableCellValue(
+  cell: SparqlBindingValue | undefined,
+): number | string {
   if (cell == null) {
     return "";
   }
@@ -122,7 +133,9 @@ export function SparqlResults({
   const deferredResult = useDeferredValue(result);
   const isResultDeferred = result !== deferredResult;
   const shouldHighlightRawResult =
-    result != null && (payloadSizeBytes == null || payloadSizeBytes <= maxHighlightedPayloadBytes);
+    result != null &&
+    (payloadSizeBytes == null ||
+      payloadSizeBytes <= maxHighlightedPayloadBytes);
 
   useEffect(() => {
     let active = true;
@@ -197,7 +210,9 @@ export function SparqlResults({
         field: "rowNumber",
         headerName: "#",
         renderCell: (params: GridRenderCellParams) => {
-          return String(params.api.getRowIndexRelativeToVisibleRows(params.id) + 1);
+          return String(
+            params.api.getRowIndexRelativeToVisibleRows(params.id) + 1,
+          );
         },
         sortable: false,
         width: 72,
@@ -207,7 +222,10 @@ export function SparqlResults({
           field: variable,
           minWidth: 180,
           renderCell: (params: GridRenderCellParams) => {
-            const row = params.row as Record<string, SparqlBindingValue | undefined>;
+            const row = params.row as Record<
+              string,
+              SparqlBindingValue | undefined
+            >;
             const cell = row[variable];
 
             if (cell == null) {
@@ -237,7 +255,10 @@ export function SparqlResults({
             });
           },
           valueGetter: (_value, row) => {
-            const typedRow = row as Record<string, SparqlBindingValue | undefined>;
+            const typedRow = row as Record<
+              string,
+              SparqlBindingValue | undefined
+            >;
             const cell = typedRow[variable];
             return getSortableCellValue(cell);
           },
@@ -289,7 +310,10 @@ export function SparqlResults({
 
   if (isLoading) {
     return (
-      <div aria-label="SPARQL results" className="panel h-screen max-h-screen w-full p-4">
+      <div
+        aria-label="SPARQL results"
+        className="panel h-screen max-h-screen w-full p-4"
+      >
         <div className="flex items-center justify-center gap-2">
           <CircularProgress color="secondary" size={24} />
           <p className="mb-0 text-sm">{`Executing query... ${String(elapsedSeconds)}s`}</p>
@@ -303,7 +327,11 @@ export function SparqlResults({
       <div className="flex items-center justify-between gap-3">
         {hasSuccessfulResult ? (
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Chip label={`Results: ${resultCount.toLocaleString()}`} size="small" variant="outlined" />
+            <Chip
+              label={`Results: ${resultCount.toLocaleString()}`}
+              size="small"
+              variant="outlined"
+            />
             <Chip
               label={`Time: ${queryDurationMs?.toFixed(0) ?? "0"} ms`}
               size="small"
@@ -314,7 +342,9 @@ export function SparqlResults({
               size="small"
               variant="outlined"
             />
-            {resultTruncated ? <Chip color="warning" label="Preview truncated" size="small" /> : null}
+            {resultTruncated ? (
+              <Chip color="warning" label="Preview truncated" size="small" />
+            ) : null}
           </div>
         ) : (
           <div />
@@ -348,8 +378,8 @@ export function SparqlResults({
         <>
           {resultTruncated ? (
             <div className="mt-2 rounded-panel border border-ui-border p-3 text-sm text-muted">
-              The response preview was truncated because the payload was too large to safely render
-              in the browser.
+              The response preview was truncated because the payload was too
+              large to safely render in the browser.
             </div>
           ) : null}
           {shouldHighlightRawResult ? (
@@ -376,14 +406,19 @@ export function SparqlResults({
           </div>
         ) : resultTruncated ? (
           <div className="mt-2 rounded-panel border border-ui-border p-3 text-sm text-muted">
-            The response preview was truncated because the payload was too large for safe table
-            rendering. Add a `LIMIT` to display the result in the table, or switch to Raw to
-            inspect the preview.
+            The response preview was truncated because the payload was too large
+            for safe table rendering. Add a `LIMIT` to display the result in the
+            table, or switch to Raw to inspect the preview.
           </div>
         ) : parsedResult == null ? (
-          <p className="mb-0 mt-2 text-sm text-muted">Result is not valid SPARQL JSON.</p>
+          <p className="mb-0 mt-2 text-sm text-muted">
+            Result is not valid SPARQL JSON.
+          </p>
         ) : (
-          <div className="mt-2 w-full rounded-panel border border-ui-border" style={{ height: "calc(100vh - 10rem)" }}>
+          <div
+            className="mt-2 w-full rounded-panel border border-ui-border"
+            style={{ height: "calc(100vh - 10rem)" }}
+          >
             <DataGrid
               autosizeOnMount
               autosizeOptions={{ expand: false, includeHeaders: true }}
@@ -391,7 +426,9 @@ export function SparqlResults({
               columns={tableColumns}
               disableColumnFilter
               disableRowSelectionOnClick
-              initialState={{ pagination: { paginationModel: { pageSize: 100 } } }}
+              initialState={{
+                pagination: { paginationModel: { pageSize: 100 } },
+              }}
               pageSizeOptions={[100]}
               rows={tableRows}
               sortingOrder={["asc", "desc"]}

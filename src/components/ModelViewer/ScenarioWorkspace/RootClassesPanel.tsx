@@ -1,5 +1,9 @@
 import { Button, Tooltip } from "@mui/material";
-import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
+import {
+  DataGrid,
+  type GridColDef,
+  type GridRenderCellParams,
+} from "@mui/x-data-grid";
 import { type Dispatch, useMemo } from "react";
 
 import { createDefaultNodeState, type ScenarioAction } from "../../../scenario";
@@ -41,7 +45,9 @@ export function RootClassesPanel({
         field: "rowNumber",
         headerName: "#",
         renderCell: (params: GridRenderCellParams) => {
-          return String(params.api.getRowIndexRelativeToVisibleRows(params.id) + 1);
+          return String(
+            params.api.getRowIndexRelativeToVisibleRows(params.id) + 1,
+          );
         },
         sortable: false,
         width: 72,
@@ -82,7 +88,8 @@ export function RootClassesPanel({
         renderCell: (params: GridRenderCellParams<RootClassRow, string>) => {
           const rdfType = params.value ?? "";
 
-          return rdfType.startsWith("http://") || rdfType.startsWith("https://") ? (
+          return rdfType.startsWith("http://") ||
+            rdfType.startsWith("https://") ? (
             <a
               className="text-sm text-blue-700 underline visited:text-purple-700 hover:text-blue-800"
               href={rdfType}
@@ -131,7 +138,9 @@ export function RootClassesPanel({
           const count = params.value;
 
           return (
-            <Tooltip title={`${String(count)} instances of this type found in the triple store`}>
+            <Tooltip
+              title={`${String(count)} instances of this type found in the triple store`}
+            >
               <span>{String(count)}</span>
             </Tooltip>
           );

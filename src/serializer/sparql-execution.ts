@@ -43,12 +43,15 @@ async function readResponseTextSafely(response: Response): Promise<{
     }
 
     payloadBytes += value.byteLength;
-    newlineCount += lineCountDecoder.decode(value, { stream: true }).split("\n").length - 1;
+    newlineCount +=
+      lineCountDecoder.decode(value, { stream: true }).split("\n").length - 1;
 
     if (storedBytes < maxStoredPayloadBytes) {
       const remainingBytes = maxStoredPayloadBytes - storedBytes;
       const chunkToStore =
-        value.byteLength <= remainingBytes ? value : value.subarray(0, remainingBytes);
+        value.byteLength <= remainingBytes
+          ? value
+          : value.subarray(0, remainingBytes);
 
       chunks.push(previewDecoder.decode(chunkToStore, { stream: true }));
       storedBytes += chunkToStore.byteLength;
@@ -67,7 +70,9 @@ async function readResponseTextSafely(response: Response): Promise<{
   return {
     payloadBytes,
     text,
-    truncatedLineCount: truncated ? Math.max(0, totalLineCount - previewLineCount) : 0,
+    truncatedLineCount: truncated
+      ? Math.max(0, totalLineCount - previewLineCount)
+      : 0,
     truncated,
   };
 }
@@ -92,15 +97,15 @@ export async function executeSparqlQuery(
   const response = await fetch(normalizedEndpoint, {
     body: new URLSearchParams({ query: normalizedQuery }).toString(),
     headers: {
-      Accept: "application/sparql-results+json, application/json, text/plain;q=0.8",
+      Accept:
+        "application/sparql-results+json, application/json, text/plain;q=0.8",
       "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
     },
     method: "POST",
     signal,
   });
-  const { payloadBytes, text, truncated, truncatedLineCount } = await readResponseTextSafely(
-    response,
-  );
+  const { payloadBytes, text, truncated, truncatedLineCount } =
+    await readResponseTextSafely(response);
 
   if (!response.ok) {
     throw new Error(`Query failed (${String(response.status)}): ${text}`);

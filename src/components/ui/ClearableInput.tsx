@@ -1,13 +1,25 @@
 import ClearIcon from "@mui/icons-material/Clear";
-import { IconButton, InputAdornment, TextField, type TextFieldProps } from "@mui/material";
+import {
+  IconButton,
+  InputAdornment,
+  TextField,
+  type TextFieldProps,
+} from "@mui/material";
 
-interface ClearableInputProps extends Omit<TextFieldProps, "onChange" | "value"> {
+interface ClearableInputProps extends Omit<
+  TextFieldProps,
+  "onChange" | "value"
+> {
   onChange: NonNullable<TextFieldProps["onChange"]>;
   onClear: () => void;
   value: string;
 }
 
-export function ClearableInput({ onClear, value, ...props }: ClearableInputProps) {
+export function ClearableInput({
+  onClear,
+  value,
+  ...props
+}: ClearableInputProps) {
   const clearLabel = typeof props.label === "string" ? props.label : "input";
 
   return (

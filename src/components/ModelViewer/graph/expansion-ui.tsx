@@ -25,7 +25,9 @@ export function renderExpansionIcon(
     return <span className="text-sm leading-none">▼</span>;
   }
 
-  return <span className="inline-block rotate-180 text-sm leading-none">◭</span>;
+  return (
+    <span className="inline-block rotate-180 text-sm leading-none">◭</span>
+  );
 }
 
 export function getExpansionTooltip(

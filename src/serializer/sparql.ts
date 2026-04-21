@@ -1,5 +1,9 @@
 import type { Scenario } from "../scenario";
-import { createSelectedSubgraphAst, type ModelAstNode, type ModelSubgraphAst } from "./ast";
+import {
+  createSelectedSubgraphAst,
+  type ModelAstNode,
+  type ModelSubgraphAst,
+} from "./ast";
 import type { Pathbuilder } from "./pathbuilder";
 import { TYPE_PREFIXES } from "./prefixes";
 
@@ -90,7 +94,9 @@ function createShortestUniqueVariableBaseNames(
           return part;
         });
         const otherStartIndex = Math.max(0, otherParts.length - depth);
-        const otherCandidate = sanitizeVariableName(otherParts.slice(otherStartIndex).join("_"));
+        const otherCandidate = sanitizeVariableName(
+          otherParts.slice(otherStartIndex).join("_"),
+        );
 
         return otherCandidate === candidate;
       });
@@ -102,7 +108,10 @@ function createShortestUniqueVariableBaseNames(
       depth += 1;
     }
 
-    candidatesByIndex.set(index, candidate.length > 0 ? candidate : `v_${String(index)}`);
+    candidatesByIndex.set(
+      index,
+      candidate.length > 0 ? candidate : `v_${String(index)}`,
+    );
   }
 
   return candidatesByIndex;
@@ -156,7 +165,10 @@ function formatIriTerm(
   return isInversePredicate ? `^${iri}` : iri;
 }
 
-function getCommonPrefixLength(left: Array<string>, right: Array<string>): number {
+function getCommonPrefixLength(
+  left: Array<string>,
+  right: Array<string>,
+): number {
   const minLength = Math.min(left.length, right.length);
   let index = 0;
 
@@ -194,11 +206,17 @@ function getTraversalDirectionBetweenNodes(
   const toPath = toNode.data.id_array;
   const commonPrefixLength = getCommonPrefixLength(fromPath, toPath);
 
-  if (toPath.length === fromPath.length + 2 && commonPrefixLength === fromPath.length) {
+  if (
+    toPath.length === fromPath.length + 2 &&
+    commonPrefixLength === fromPath.length
+  ) {
     return toPath[fromPath.length] === "<" ? "up" : "down";
   }
 
-  if (fromPath.length === toPath.length + 2 && commonPrefixLength === toPath.length) {
+  if (
+    fromPath.length === toPath.length + 2 &&
+    commonPrefixLength === toPath.length
+  ) {
     return fromPath[toPath.length] === ">" ? "up" : "down";
   }
 
@@ -208,7 +226,9 @@ function getTraversalDirectionBetweenNodes(
 function createLogicalParentByNodeId(
   allNodes: Array<{ depth: number; node: ModelAstNode }>,
 ): Map<string, string> {
-  const nodeIds = new Set(allNodes.map(({ node }) => stringifyPath(node.data.id_array)));
+  const nodeIds = new Set(
+    allNodes.map(({ node }) => stringifyPath(node.data.id_array)),
+  );
   const logicalParentByNodeId = new Map<string, string>();
 
   for (const { node } of allNodes) {
@@ -250,10 +270,13 @@ function createNodeVariableMaps(tree: ModelSubgraphAst): {
   for (const [index, entry] of allNodes.entries()) {
     const { depth, node } = entry;
     const variableBaseName =
-      shortestBaseNames.get(index) ?? createVariableBaseNameFromIdArray(node.data.id_array);
+      shortestBaseNames.get(index) ??
+      createVariableBaseNameFromIdArray(node.data.id_array);
     const seenCount = seenCountsByName.get(variableBaseName) ?? 0;
     const variableLabel =
-      seenCount === 0 ? `?${variableBaseName}` : `?${variableBaseName}_${String(seenCount)}`;
+      seenCount === 0
+        ? `?${variableBaseName}`
+        : `?${variableBaseName}_${String(seenCount)}`;
     const nodeId = stringifyPath(node.data.id_array);
 
     seenCountsByName.set(variableBaseName, seenCount + 1);
@@ -262,7 +285,10 @@ function createNodeVariableMaps(tree: ModelSubgraphAst): {
     if (node.data.selected != null) {
       selectedVariables.push({
         depth,
-        variable: node.data.selected === "count" ? `${variableLabel}_count` : variableLabel,
+        variable:
+          node.data.selected === "count"
+            ? `${variableLabel}_count`
+            : variableLabel,
       });
     }
   }
@@ -280,10 +306,12 @@ function compileAstToSparql(
     nodeId: string;
   }
 
-  const shouldDisregardNonRootNodeTypes = config.sparql.disregardTypesOfNonRootNodes;
+  const shouldDisregardNonRootNodeTypes =
+    config.sparql.disregardTypesOfNonRootNodes;
   const shouldCountDistinct = config.sparql.countDistinct;
   const shouldMakeAllFieldsOptional = config.sparql.makeAllFieldsOptional;
-  const shouldMakeEntityReferenceSubtreesOptional = config.sparql.makeEntityReferencesOptional;
+  const shouldMakeEntityReferenceSubtreesOptional =
+    config.sparql.makeEntityReferencesOptional;
   const shouldIncludeZeroCountResults = config.sparql.includeZeroCountResults;
   const { allNodes, nodeVariableById } = createNodeVariableMaps(tree);
   const indentLevelByNodeId = new Map(
@@ -310,10 +338,15 @@ function compileAstToSparql(
   const nodeVisitOrder = new Map<string, number>();
   let nextNodeVisitIndex = 0;
   const usedPrefixes = new Set<string>();
-  const nodeById = new Map(allNodes.map(({ node }) => [stringifyPath(node.data.id_array), node]));
+  const nodeById = new Map(
+    allNodes.map(({ node }) => [stringifyPath(node.data.id_array), node]),
+  );
   const parentByNodeId = createLogicalParentByNodeId(allNodes);
 
-  function isUpwardChildNode(node: ModelAstNode, parent: ModelAstNode | undefined): boolean {
+  function isUpwardChildNode(
+    node: ModelAstNode,
+    parent: ModelAstNode | undefined,
+  ): boolean {
     if (parent == null) {
       return false;
     }
@@ -325,7 +358,8 @@ function compileAstToSparql(
     node: ModelAstNode,
     parent: ModelAstNode | undefined,
   ): Array<string> {
-    const parentEdgeEntityReferencePathArray = node.data.parentEdgeEntityReferencePath?.path_array;
+    const parentEdgeEntityReferencePathArray =
+      node.data.parentEdgeEntityReferencePath?.path_array;
 
     if (parent != null && parentEdgeEntityReferencePathArray != null) {
       return parentEdgeEntityReferencePathArray;
@@ -374,7 +408,11 @@ function compileAstToSparql(
           );
     const predicateIndexes: Array<number> = [];
 
-    for (let pathIndex = startIndex; pathIndex < nodePathArray.length; pathIndex += 1) {
+    for (
+      let pathIndex = startIndex;
+      pathIndex < nodePathArray.length;
+      pathIndex += 1
+    ) {
       if (pathIndex % 2 === 1) {
         predicateIndexes.push(pathIndex);
       }
@@ -395,20 +433,30 @@ function compileAstToSparql(
     let predicateCursor = 0;
     let emittedStatements = 0;
 
-    for (let pathIndex = startIndex; pathIndex < nodePathArray.length; pathIndex += 1) {
+    for (
+      let pathIndex = startIndex;
+      pathIndex < nodePathArray.length;
+      pathIndex += 1
+    ) {
       const pathElement = nodePathArray[pathIndex]!;
       const indent = "  ".repeat(nodeDepth + 1);
       const pathTerm = formatIriTerm(pathElement, prefixes, usedPrefixes);
 
       if (pathIndex % 2 === 0) {
-        if (hasSharedTerminalTypeWithParent && pathIndex === nodePathArray.length - 1) {
+        if (
+          hasSharedTerminalTypeWithParent &&
+          pathIndex === nodePathArray.length - 1
+        ) {
           continue;
         }
 
         const typeSubjectVariable =
-          pathIndex === nodePathArray.length - 1 ? nodeVariable : currentVariable;
+          pathIndex === nodePathArray.length - 1
+            ? nodeVariable
+            : currentVariable;
         const typeStatement = `${typeSubjectVariable} a ${pathTerm} .`;
-        const shouldCommentTypeStatement = shouldDisregardNonRootNodeTypes && pathIndex > 0;
+        const shouldCommentTypeStatement =
+          shouldDisregardNonRootNodeTypes && pathIndex > 0;
 
         whereStatements.push({
           line: shouldCommentTypeStatement
@@ -420,7 +468,8 @@ function compileAstToSparql(
         continue;
       }
 
-      const isLastPredicate = predicateIndexes[predicateIndexes.length - 1] === pathIndex;
+      const isLastPredicate =
+        predicateIndexes[predicateIndexes.length - 1] === pathIndex;
       const nextVariable = isLastPredicate
         ? terminalVariable
         : `${nodeVariable}_p${String(predicateCursor)}`;
@@ -468,15 +517,21 @@ function compileAstToSparql(
             pathArray: nodePathArray,
             variable: nodeVariable,
           };
-    const upwardChildren = node.children.filter((child) => isUpwardChildNode(child, node));
-    const downwardChildren = node.children.filter((child) => !isUpwardChildNode(child, node));
+    const upwardChildren = node.children.filter((child) =>
+      isUpwardChildNode(child, node),
+    );
+    const downwardChildren = node.children.filter(
+      (child) => !isUpwardChildNode(child, node),
+    );
     let nextParentContext = parentContext;
     const shouldWrapInOptional =
       parent != null &&
       (shouldMakeAllFieldsOptional ||
         (shouldMakeEntityReferenceSubtreesOptional &&
           node.data.parentEdgeEntityReferencePath != null));
-    const optionalIndent = "  ".repeat((normalizedIndentDepthByNodeId.get(nodeId) ?? 0) + 1);
+    const optionalIndent = "  ".repeat(
+      (normalizedIndentDepthByNodeId.get(nodeId) ?? 0) + 1,
+    );
 
     if (shouldWrapInOptional) {
       whereStatements.push({
@@ -488,10 +543,18 @@ function compileAstToSparql(
     let upwardLinkVariable: undefined | string;
     for (const upwardChild of upwardChildren) {
       const upwardChildPathArray = getEffectiveNodePathArray(upwardChild, node);
-      const upwardParentContext = nodeVariable == null ? undefined : { variable: nodeVariable };
-      const upwardVariable = emitNodeWithOrderedEdges(upwardChild, node, upwardParentContext);
+      const upwardParentContext =
+        nodeVariable == null ? undefined : { variable: nodeVariable };
+      const upwardVariable = emitNodeWithOrderedEdges(
+        upwardChild,
+        node,
+        upwardParentContext,
+      );
 
-      if (upwardVariable != null && upwardChild.data.parentEdgeEntityReferencePath == null) {
+      if (
+        upwardVariable != null &&
+        upwardChild.data.parentEdgeEntityReferencePath == null
+      ) {
         upwardLinkVariable = upwardVariable;
         if (node.data.parentEdgeEntityReferencePath == null) {
           nextParentContext = {
@@ -543,21 +606,28 @@ function compileAstToSparql(
   for (const [index, statement] of whereStatements.entries()) {
     if (!firstWhereIndexByNodeId.has(statement.nodeId)) {
       firstWhereIndexByNodeId.set(statement.nodeId, index);
-      firstWhereIndentByNodeId.set(statement.nodeId, /^\s*/.exec(statement.line)?.[0] ?? "");
+      firstWhereIndentByNodeId.set(
+        statement.nodeId,
+        /^\s*/.exec(statement.line)?.[0] ?? "",
+      );
     }
   }
   const nodeIdsInWhereOrder = allNodes
     .map(({ node }) => stringifyPath(node.data.id_array))
     .sort((leftNodeId, rightNodeId) => {
-      const leftIndex = firstWhereIndexByNodeId.get(leftNodeId) ?? Number.MAX_SAFE_INTEGER;
-      const rightIndex = firstWhereIndexByNodeId.get(rightNodeId) ?? Number.MAX_SAFE_INTEGER;
+      const leftIndex =
+        firstWhereIndexByNodeId.get(leftNodeId) ?? Number.MAX_SAFE_INTEGER;
+      const rightIndex =
+        firstWhereIndexByNodeId.get(rightNodeId) ?? Number.MAX_SAFE_INTEGER;
 
       if (leftIndex !== rightIndex) {
         return leftIndex - rightIndex;
       }
 
-      const leftVisit = nodeVisitOrder.get(leftNodeId) ?? Number.MAX_SAFE_INTEGER;
-      const rightVisit = nodeVisitOrder.get(rightNodeId) ?? Number.MAX_SAFE_INTEGER;
+      const leftVisit =
+        nodeVisitOrder.get(leftNodeId) ?? Number.MAX_SAFE_INTEGER;
+      const rightVisit =
+        nodeVisitOrder.get(rightNodeId) ?? Number.MAX_SAFE_INTEGER;
 
       if (leftVisit !== rightVisit) {
         return leftVisit - rightVisit;
@@ -577,7 +647,8 @@ function compileAstToSparql(
 
     return {
       commentedOut: !isSelected,
-      variable: node?.data.selected === "count" ? `${variable}_count` : variable,
+      variable:
+        node?.data.selected === "count" ? `${variable}_count` : variable,
       indentDepth,
       indent: whereIndent ?? "  ".repeat(indentDepth + 1),
     };
@@ -587,7 +658,8 @@ function compileAstToSparql(
       ? "SELECT *"
       : `SELECT\n${selectVariables
           .map(({ commentedOut, indent, variable }) => {
-            const commentedIndent = indent.length >= 1 ? indent.slice(0, -1) : "";
+            const commentedIndent =
+              indent.length >= 1 ? indent.slice(0, -1) : "";
 
             return commentedOut
               ? `${commentedIndent}#${variable}`
@@ -629,7 +701,9 @@ function compileAstToSparql(
     return false;
   }
 
-  function getImplicitRootNodeIdForCount(countNodeId: string): undefined | string {
+  function getImplicitRootNodeIdForCount(
+    countNodeId: string,
+  ): undefined | string {
     const otherSelectedNodeIds = selectedNodeIdsInWhereOrder.filter(
       (nodeId) => nodeId !== countNodeId,
     );
@@ -641,7 +715,11 @@ function compileAstToSparql(
     let cursor: undefined | string = countNodeId;
 
     while (cursor != null) {
-      if (otherSelectedNodeIds.every((nodeId) => isDescendantOrSame(nodeId, cursor!))) {
+      if (
+        otherSelectedNodeIds.every((nodeId) =>
+          isDescendantOrSame(nodeId, cursor!),
+        )
+      ) {
         return cursor;
       }
 
@@ -699,15 +777,21 @@ function compileAstToSparql(
     .map((countNodeId) => {
       const explicitAnchorNodeId = getExplicitAnchorNodeId(countNodeId);
       const implicitRootNodeId =
-        explicitAnchorNodeId == null ? getImplicitRootNodeIdForCount(countNodeId) : undefined;
-      const anchorNodeId = explicitAnchorNodeId ?? implicitRootNodeId ?? countNodeId;
+        explicitAnchorNodeId == null
+          ? getImplicitRootNodeIdForCount(countNodeId)
+          : undefined;
+      const anchorNodeId =
+        explicitAnchorNodeId ?? implicitRootNodeId ?? countNodeId;
       const hasAnchor = anchorNodeId !== countNodeId;
-      const anchorVariable = hasAnchor ? nodeVariableById.get(anchorNodeId) : undefined;
+      const anchorVariable = hasAnchor
+        ? nodeVariableById.get(anchorNodeId)
+        : undefined;
       const countVariable = nodeVariableById.get(countNodeId);
       const isLoneImplicitCountSelection =
         explicitAnchorNodeId == null &&
         implicitRootNodeId === countNodeId &&
-        selectedNodeIdsInWhereOrder.filter((nodeId) => nodeId !== countNodeId).length === 0;
+        selectedNodeIdsInWhereOrder.filter((nodeId) => nodeId !== countNodeId)
+          .length === 0;
 
       if (countVariable == null || (hasAnchor && anchorVariable == null)) {
         return null;
@@ -715,7 +799,11 @@ function compileAstToSparql(
 
       const pathNodeIds = isLoneImplicitCountSelection
         ? getPathNodeIdsFromRootToNode(countNodeId)
-        : getPathNodeIdsFromAnchorToCount(anchorNodeId, countNodeId, !hasAnchor);
+        : getPathNodeIdsFromAnchorToCount(
+            anchorNodeId,
+            countNodeId,
+            !hasAnchor,
+          );
 
       if (pathNodeIds.length === 0) {
         return null;
@@ -810,7 +898,9 @@ function compileAstToSparql(
         );
         whereLines.push(...originalLines);
         whereLines.push(
-          wrapper.hasAnchor ? `${indent}} GROUP BY ${anchorVariable ?? ""} }` : `${indent}}`,
+          wrapper.hasAnchor
+            ? `${indent}} GROUP BY ${anchorVariable ?? ""} }`
+            : `${indent}}`,
         );
       }
     }
@@ -823,14 +913,18 @@ function compileAstToSparql(
   }
 
   const whereClause =
-    whereLines.length === 0 ? "WHERE { }" : `WHERE {\n${whereLines.join("\n")}\n}`;
+    whereLines.length === 0
+      ? "WHERE { }"
+      : `WHERE {\n${whereLines.join("\n")}\n}`;
   const prefixStatements = prefixes
     .filter((prefix) => usedPrefixes.has(prefix.prefix))
     .map((prefix) => `PREFIX ${prefix.prefix}: <${prefix.iri}>`);
   const prefixBlock = prefixStatements.join("\n");
   const normalizedNamedGraph = config.sparql.namedGraph.trim();
   const fromClause =
-    normalizedNamedGraph.length > 0 ? `\nFROM <${escapeIriForSparql(normalizedNamedGraph)}>` : "";
+    normalizedNamedGraph.length > 0
+      ? `\nFROM <${escapeIriForSparql(normalizedNamedGraph)}>`
+      : "";
   const orderByVariable = config.sparql.orderBy?.[0]?.trim() ?? "";
   const orderByDirection = config.sparql.orderBy?.[1] ?? "ASC";
   const orderByClause =
@@ -838,10 +932,12 @@ function compileAstToSparql(
       ? ""
       : `\nORDER BY ${orderByDirection === "DESC" ? "DESC" : "ASC"}(?${orderByVariable})`;
   const limitValue =
-    typeof config.sparql.limit === "number" && Number.isInteger(config.sparql.limit)
+    typeof config.sparql.limit === "number" &&
+    Number.isInteger(config.sparql.limit)
       ? config.sparql.limit
       : undefined;
-  const limitClause = limitValue == null ? "" : `\nLIMIT ${String(Math.max(0, limitValue))}`;
+  const limitClause =
+    limitValue == null ? "" : `\nLIMIT ${String(Math.max(0, limitValue))}`;
 
   return `${prefixBlock.length > 0 ? `${prefixBlock}\n\n` : ""}${selectClause}${fromClause}\n${whereClause}${orderByClause}${limitClause}`;
 }
@@ -851,7 +947,8 @@ export function createSparqlProcessor(
   config: SparqlProcessorConfig,
 ): SparqlUnifiedProcessor {
   const transforms: Array<SparqlAstTransformer> = [];
-  const compiler: SparqlCompiler = (tree) => compileAstToSparql(tree, prefixes, config);
+  const compiler: SparqlCompiler = (tree) =>
+    compileAstToSparql(tree, prefixes, config);
 
   return {
     processSync(tree: ModelSubgraphAst): string {
