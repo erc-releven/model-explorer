@@ -12,6 +12,7 @@
     "format:check": "oxfmt --check .",
     "check": "npm run format:check && npm run lint:check",
     "test": "vitest run",
+    "prepare": "git config core.hooksPath .githooks",
     "preview": "vite preview"
   },
   "dependencies": {
