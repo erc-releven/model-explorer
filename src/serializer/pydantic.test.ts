@@ -4,11 +4,7 @@ import { resolve } from "node:path";
 import { JSDOM } from "jsdom";
 import { describe, expect, test } from "vitest";
 
-import {
-  createDefaultNodeState,
-  defaultSparqlConfig,
-  type Scenario,
-} from "../scenario";
+import { createDefaultNodeState, defaultSparqlConfig, type Scenario } from "../scenario";
 import { parsePathbuilderDocument, type Pathbuilder } from "./pathbuilder";
 import { serializeModelStateToPydantic } from "./pydantic";
 
@@ -21,12 +17,8 @@ function loadDefaultPathbuilder(): Pathbuilder {
     throw new Error("DEFAULT_XML is not configured for tests.");
   }
 
-  const xmlContent = readFileSync(
-    resolve(process.cwd(), "public", xmlSource),
-    "utf8",
-  );
-  const xmlDocument = new JSDOM(xmlContent, { contentType: "text/xml" }).window
-    .document;
+  const xmlContent = readFileSync(resolve(process.cwd(), "public", xmlSource), "utf8");
+  const xmlDocument = new JSDOM(xmlContent, { contentType: "text/xml" }).window.document;
 
   return parsePathbuilderDocument(xmlDocument);
 }
@@ -53,10 +45,7 @@ function splitIdParts(id: string): { prefix: string; tokens: Array<string> } {
   };
 }
 
-function createCandidateAliases(
-  candidateId: string,
-  parentId?: string,
-): Set<string> {
+function createCandidateAliases(candidateId: string, parentId?: string): Set<string> {
   const aliases = new Set([candidateId]);
 
   if (parentId == null) {
@@ -80,9 +69,7 @@ function createCandidateAliases(
   }
 
   if (commonLength > 0 && commonLength < candidate.tokens.length) {
-    aliases.add(
-      `${candidate.prefix}_${candidate.tokens.slice(commonLength).join("_")}`,
-    );
+    aliases.add(`${candidate.prefix}_${candidate.tokens.slice(commonLength).join("_")}`);
   }
 
   return aliases;
@@ -117,20 +104,13 @@ function resolveSelectionSegment(
   }
 
   if (candidates.length > 1) {
-    throw new Error(
-      `Ambiguous selection segment "${segment}" below "${parentId}".`,
-    );
+    throw new Error(`Ambiguous selection segment "${segment}" below "${parentId}".`);
   }
 
-  throw new Error(
-    `Could not resolve selection segment "${segment}" below "${parentId}".`,
-  );
+  throw new Error(`Could not resolve selection segment "${segment}" below "${parentId}".`);
 }
 
-function resolveSelectionPath(
-  pathbuilder: Pathbuilder,
-  selection: string,
-): Array<string> {
+function resolveSelectionPath(pathbuilder: Pathbuilder, selection: string): Array<string> {
   const parts = parseSelection(selection);
   const rootId = parts[0];
 
@@ -149,12 +129,7 @@ function resolveSelectionPath(
       throw new Error(`Invalid selection syntax: "${selection}".`);
     }
 
-    const resolvedSegment = resolveSelectionSegment(
-      pathbuilder,
-      currentId,
-      direction,
-      segment,
-    );
+    const resolvedSegment = resolveSelectionSegment(pathbuilder, currentId, direction, segment);
 
     resolvedPath.push(direction, resolvedSegment);
     currentId = resolvedSegment;
@@ -218,10 +193,7 @@ describe("serializeModelStateToPydantic", () => {
 
   test("marks all non-root selected fields optional when configured", () => {
     const pathbuilder = loadDefaultPathbuilder();
-    const selectedPath = resolveSelectionPath(
-      pathbuilder,
-      "g_person > p_person_display_name",
-    );
+    const selectedPath = resolveSelectionPath(pathbuilder, "g_person > p_person_display_name");
     const scenario: Scenario = {
       nodes: [
         createDefaultNodeState(["g_person"]),

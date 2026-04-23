@@ -1,9 +1,5 @@
 import { Button, Tooltip } from "@mui/material";
-import {
-  DataGrid,
-  type GridColDef,
-  type GridRenderCellParams,
-} from "@mui/x-data-grid";
+import { DataGrid, type GridColDef, type GridRenderCellParams } from "@mui/x-data-grid";
 import { type Dispatch, useMemo } from "react";
 
 import { createDefaultNodeState, type ScenarioAction } from "../../../scenario";
@@ -12,6 +8,7 @@ import type { PathbuilderPath } from "../../../serializer/pathbuilder";
 interface RootClassesPanelProps {
   dispatchModelState: Dispatch<ScenarioAction>;
   instanceCountByPathId: Record<string, number>;
+  onRootClassSelected: () => void;
   pathsWithReferences: Array<PathbuilderPath>;
   xmlLoadError: null | string;
 }
@@ -29,6 +26,7 @@ interface RootClassRow {
 export function RootClassesPanel({
   dispatchModelState,
   instanceCountByPathId,
+  onRootClassSelected,
   pathsWithReferences,
   xmlLoadError,
 }: RootClassesPanelProps) {
@@ -37,21 +35,11 @@ export function RootClassesPanel({
       payload: { nodes: [createDefaultNodeState([rootNodeId])] },
       type: "state/setNodes",
     });
+    onRootClassSelected();
   }
 
   const columns = useMemo<Array<GridColDef<RootClassRow>>>(() => {
     return [
-      {
-        field: "rowNumber",
-        headerName: "#",
-        renderCell: (params: GridRenderCellParams) => {
-          return String(
-            params.api.getRowIndexRelativeToVisibleRows(params.id) + 1,
-          );
-        },
-        sortable: false,
-        width: 72,
-      },
       {
         field: "name",
         headerName: "Entity name",
@@ -88,8 +76,7 @@ export function RootClassesPanel({
         renderCell: (params: GridRenderCellParams<RootClassRow, string>) => {
           const rdfType = params.value ?? "";
 
-          return rdfType.startsWith("http://") ||
-            rdfType.startsWith("https://") ? (
+          return rdfType.startsWith("http://") || rdfType.startsWith("https://") ? (
             <a
               className="text-sm text-blue-700 underline visited:text-purple-700 hover:text-blue-800"
               href={rdfType}
@@ -138,9 +125,7 @@ export function RootClassesPanel({
           const count = params.value;
 
           return (
-            <Tooltip
-              title={`${String(count)} instances of this type found in the triple store`}
-            >
+            <Tooltip title={`${String(count)} instances of this type found in the triple store`}>
               <span>{String(count)}</span>
             </Tooltip>
           );

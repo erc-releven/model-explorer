@@ -28,10 +28,7 @@ export interface PathNodeData extends Record<string, unknown> {
     optionPaths: Array<Array<string>>,
     visible: boolean,
   ) => void;
-  onToggleBottomOption: (
-    idPath: Array<string>,
-    optionPath: Array<string>,
-  ) => void;
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void;
   onToggleTopOption: (idPath: Array<string>, optionPath: Array<string>) => void;
   onSelectNode: (idPath: Array<string>, count: boolean) => void;
   row_index: number;
@@ -93,10 +90,7 @@ function createPathNode(
     optionPaths: Array<Array<string>>,
     visible: boolean,
   ) => void,
-  onToggleBottomOption: (
-    idPath: Array<string>,
-    optionPath: Array<string>,
-  ) => void,
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void,
   onSelectNode: (idPath: Array<string>, count: boolean) => void,
   onSetTopOptionsVisibility: (
     idPath: Array<string>,
@@ -152,16 +146,9 @@ function createEdgeForNode(
     }
 
     return {
-      data:
-        childPath.entity_reference == null
-          ? undefined
-          : { entityReferencePath: childPath },
+      data: childPath.entity_reference == null ? undefined : { entityReferencePath: childPath },
       id: `${stringifyPath(parentPath)}->${stringifyPath(nodePath)}`,
-      label: resolveTransitionLabelForNodePath(
-        pathbuilder,
-        nodePath,
-        parentTargetPath,
-      ),
+      label: resolveTransitionLabelForNodePath(pathbuilder, nodePath, parentTargetPath),
       source: stringifyPath(parentPath),
       sourceHandle: "bottom",
       target: stringifyPath(nodePath),
@@ -177,16 +164,9 @@ function createEdgeForNode(
     const referencePath = pathbuilder.getPathById(segment);
 
     return {
-      data:
-        referencePath == null
-          ? undefined
-          : { entityReferencePath: referencePath },
+      data: referencePath == null ? undefined : { entityReferencePath: referencePath },
       id: `${stringifyPath(nodePath)}->${stringifyPath(parentPath)}`,
-      label: resolveTransitionLabelForNodePath(
-        pathbuilder,
-        nodePath,
-        parentTargetPath,
-      ),
+      label: resolveTransitionLabelForNodePath(pathbuilder, nodePath, parentTargetPath),
       source: stringifyPath(nodePath),
       sourceHandle: "bottom",
       target: stringifyPath(parentPath),
@@ -215,10 +195,7 @@ export function createGraphFromScenario(
     optionPaths: Array<Array<string>>,
     visible: boolean,
   ) => void,
-  onToggleBottomOption: (
-    idPath: Array<string>,
-    optionPath: Array<string>,
-  ) => void,
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void,
   onSelectNode: (idPath: Array<string>, count: boolean) => void,
   onSetTopOptionsVisibility: (
     idPath: Array<string>,
@@ -234,9 +211,7 @@ export function createGraphFromScenario(
     return { edges: [], nodes: [] };
   }
 
-  const visiblePathKeys = new Set(
-    scenario.nodes.map((node) => stringifyPath(node.id)),
-  );
+  const visiblePathKeys = new Set(scenario.nodes.map((node) => stringifyPath(node.id)));
   const selectedNodes = scenario.nodes.filter((node) => node.selected != null);
 
   function isLockedBySelection(optionPath: Array<string>): boolean {
@@ -265,10 +240,7 @@ export function createGraphFromScenario(
 
   const resolvedNodes: Array<ResolvedScenarioNode> = scenario.nodes
     .map((nodeState) => {
-      const targetPath = resolveTargetPathForNodePath(
-        pathbuilder,
-        nodeState.id,
-      );
+      const targetPath = resolveTargetPathForNodePath(pathbuilder, nodeState.id);
 
       if (targetPath == null) {
         return undefined;
@@ -286,20 +258,10 @@ export function createGraphFromScenario(
   );
   const nodes = resolvedNodes.map(({ nodeState, rowIndex, targetPath }) => {
     const topExpansionOptions = lockSelectedOptions(
-      getTopExpansionOptions(
-        pathbuilder,
-        visiblePathKeys,
-        nodeState.id,
-        targetPath,
-      ),
+      getTopExpansionOptions(pathbuilder, visiblePathKeys, nodeState.id, targetPath),
     );
     const bottomExpansionOptions = lockSelectedOptions(
-      getBottomExpansionOptions(
-        pathbuilder,
-        visiblePathKeys,
-        nodeState.id,
-        targetPath,
-      ),
+      getBottomExpansionOptions(pathbuilder, visiblePathKeys, nodeState.id, targetPath),
     );
 
     return createPathNode(

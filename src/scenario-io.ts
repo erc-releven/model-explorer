@@ -15,9 +15,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isStringArray(value: unknown): value is Array<string> {
-  return (
-    Array.isArray(value) && value.every((entry) => typeof entry === "string")
-  );
+  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 export function parseScenario(value: unknown): null | Scenario {
@@ -29,8 +27,7 @@ export function parseScenario(value: unknown): null | Scenario {
 
   if (
     nodes != null &&
-    (!Array.isArray(nodes) ||
-      nodes.some((node) => !isRecord(node) || !isStringArray(node.id)))
+    (!Array.isArray(nodes) || nodes.some((node) => !isRecord(node) || !isStringArray(node.id)))
   ) {
     return null;
   }
@@ -47,9 +44,7 @@ export function parseScenario(value: unknown): null | Scenario {
     isRecord(value.sparql) ? value.sparql : undefined,
   );
   const normalizedXmlSource =
-    typeof value.xmlSource === "string"
-      ? value.xmlSource
-      : defaultScenario.xmlSource;
+    typeof value.xmlSource === "string" ? value.xmlSource : defaultScenario.xmlSource;
 
   return {
     nodes: normalizedNodes,
@@ -59,24 +54,24 @@ export function parseScenario(value: unknown): null | Scenario {
 }
 
 export function parseNamedScenario(value: unknown): null | NamedScenario {
-  const parsedScenario = parseScenario(value);
-
-  if (parsedScenario != null) {
-    return { scenario: parsedScenario };
-  }
-
   if (!isRecord(value)) {
     return null;
   }
 
   const nestedScenario = parseScenario(value.scenario);
 
-  if (nestedScenario == null) {
-    return null;
+  if (nestedScenario != null) {
+    return {
+      name: typeof value.name === "string" ? value.name : undefined,
+      scenario: nestedScenario,
+    };
   }
 
-  return {
-    name: typeof value.name === "string" ? value.name : undefined,
-    scenario: nestedScenario,
-  };
+  const parsedScenario = parseScenario(value);
+
+  if (parsedScenario != null) {
+    return { scenario: parsedScenario };
+  }
+
+  return null;
 }

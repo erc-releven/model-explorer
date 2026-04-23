@@ -39,30 +39,28 @@ describe("fetchCountForNodePath queue", () => {
     const firstResponse = createDeferred<Response>();
     const secondResponse = createDeferred<Response>();
     const responses = [firstResponse, secondResponse];
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (_input, init) => {
-        const body = init?.body;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const body = init?.body;
 
-        if (typeof body !== "string") {
-          throw new Error("Unexpected fetch body.");
-        }
+      if (typeof body !== "string") {
+        throw new Error("Unexpected fetch body.");
+      }
 
-        const query = new URLSearchParams(body).get("query");
+      const query = new URLSearchParams(body).get("query");
 
-        if (query == null) {
-          throw new Error("Missing query payload.");
-        }
+      if (query == null) {
+        throw new Error("Missing query payload.");
+      }
 
-        startedQueries.push(query);
-        const next = responses.shift();
+      startedQueries.push(query);
+      const next = responses.shift();
 
-        if (next == null) {
-          throw new Error("No queued mock response available.");
-        }
+      if (next == null) {
+        throw new Error("No queued mock response available.");
+      }
 
-        return await next.promise;
-      });
+      return await next.promise;
+    });
 
     const deeperSelectionRequest = __testing__.fetchCountForQuery(
       "https://example.test/sparql",
@@ -76,11 +74,7 @@ describe("fetchCountForNodePath queue", () => {
     );
     const shallowerSelectionRequest = __testing__.fetchCountForQuery(
       "https://example.test/sparql",
-      [
-        "SELECT ?person WHERE {",
-        "  ?person a <http://example.test/Person> .",
-        "}",
-      ].join("\n"),
+      ["SELECT ?person WHERE {", "  ?person a <http://example.test/Person> .", "}"].join("\n"),
       0,
     );
 
@@ -131,30 +125,28 @@ describe("fetchCountForNodePath queue", () => {
     const secondResponse = createDeferred<Response>();
     const thirdResponse = createDeferred<Response>();
     const responses = [firstResponse, secondResponse, thirdResponse];
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (_input, init) => {
-        const body = init?.body;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const body = init?.body;
 
-        if (typeof body !== "string") {
-          throw new Error("Unexpected fetch body.");
-        }
+      if (typeof body !== "string") {
+        throw new Error("Unexpected fetch body.");
+      }
 
-        const query = new URLSearchParams(body).get("query");
+      const query = new URLSearchParams(body).get("query");
 
-        if (query == null) {
-          throw new Error("Missing query payload.");
-        }
+      if (query == null) {
+        throw new Error("Missing query payload.");
+      }
 
-        startedQueries.push(query);
-        const next = responses.shift();
+      startedQueries.push(query);
+      const next = responses.shift();
 
-        if (next == null) {
-          throw new Error("No queued mock response available.");
-        }
+      if (next == null) {
+        throw new Error("No queued mock response available.");
+      }
 
-        return await next.promise;
-      });
+      return await next.promise;
+    });
 
     const firstRequest = __testing__.fetchCountForQuery(
       "https://example.test/sparql",
@@ -240,10 +232,7 @@ describe("fetchCountForNodePath queue", () => {
       throw new Error("DEFAULT_XML is not configured for tests.");
     }
 
-    const xmlContent = readFileSync(
-      resolve(process.cwd(), "public", xmlSource),
-      "utf8",
-    );
+    const xmlContent = readFileSync(resolve(process.cwd(), "public", xmlSource), "utf8");
     const pathbuilder = parsePathbuilderXml(xmlContent);
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
       return Promise.resolve(
@@ -261,18 +250,12 @@ describe("fetchCountForNodePath queue", () => {
       );
     });
 
-    await expect(
-      fetchCountForNodePath(pathbuilder, ["g_person"]),
-    ).resolves.toEqual({
+    await expect(fetchCountForNodePath(pathbuilder, ["g_person"])).resolves.toEqual({
       distinctCount: 1,
       totalCount: 1,
     });
     await expect(
-      fetchCountForNodePath(pathbuilder, [
-        "g_person",
-        ">",
-        "p_person_display_name",
-      ]),
+      fetchCountForNodePath(pathbuilder, ["g_person", ">", "p_person_display_name"]),
     ).resolves.toEqual({
       distinctCount: 1,
       totalCount: 1,

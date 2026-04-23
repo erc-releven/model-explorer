@@ -27,8 +27,7 @@ export interface Scenario {
   xmlSource: string;
 }
 
-export const defaultXmlSource =
-  typeof __DEFAULT_XML__ === "string" ? __DEFAULT_XML__ : "";
+export const defaultXmlSource = typeof __DEFAULT_XML__ === "string" ? __DEFAULT_XML__ : "";
 
 export const defaultSparqlConfig: SparqlConfigState = {
   countDistinct: false,
@@ -58,17 +57,12 @@ export type ScenarioAction =
   | { type: "state/setNodes"; payload: { nodes: Array<NodeState> } }
   | { type: "state/reset" };
 
-export function scenarioReducer(
-  state: Scenario,
-  action: ScenarioAction,
-): Scenario {
+export function scenarioReducer(state: Scenario, action: ScenarioAction): Scenario {
   switch (action.type) {
     case "state/replace": {
       return {
         ...action.payload.scenario,
-        nodes: action.payload.scenario.nodes.map((node) =>
-          normalizeNodeState(node),
-        ),
+        nodes: action.payload.scenario.nodes.map((node) => normalizeNodeState(node)),
         sparql: normalizeSparqlConfig(action.payload.scenario.sparql),
       };
     }
@@ -129,24 +123,20 @@ export function normalizeSparqlConfig(
 ): SparqlConfigState {
   const nextOrderBy = sparqlConfig?.orderBy;
   const nextLimit =
-    typeof sparqlConfig?.limit === "number" &&
-    Number.isInteger(sparqlConfig.limit)
+    typeof sparqlConfig?.limit === "number" && Number.isInteger(sparqlConfig.limit)
       ? Math.max(0, sparqlConfig.limit)
       : undefined;
 
   return {
-    countDistinct:
-      sparqlConfig?.countDistinct ?? defaultSparqlConfig.countDistinct,
+    countDistinct: sparqlConfig?.countDistinct ?? defaultSparqlConfig.countDistinct,
     disregardTypesOfNonRootNodes:
       sparqlConfig?.disregardTypesOfNonRootNodes ??
       defaultSparqlConfig.disregardTypesOfNonRootNodes,
     includeZeroCountResults:
-      sparqlConfig?.includeZeroCountResults ??
-      defaultSparqlConfig.includeZeroCountResults,
+      sparqlConfig?.includeZeroCountResults ?? defaultSparqlConfig.includeZeroCountResults,
     limit: nextLimit,
     makeAllFieldsOptional:
-      sparqlConfig?.makeAllFieldsOptional ??
-      defaultSparqlConfig.makeAllFieldsOptional,
+      sparqlConfig?.makeAllFieldsOptional ?? defaultSparqlConfig.makeAllFieldsOptional,
     makeEntityReferencesOptional:
       sparqlConfig?.makeEntityReferencesOptional ??
       defaultSparqlConfig.makeEntityReferencesOptional,
@@ -155,8 +145,6 @@ export function normalizeSparqlConfig(
       sparqlConfig?.omitPathPrefixesUnlessExplicitlySelected ??
       defaultSparqlConfig.omitPathPrefixesUnlessExplicitlySelected,
     orderBy:
-      Array.isArray(nextOrderBy) && nextOrderBy[0].trim().length > 0
-        ? nextOrderBy
-        : undefined,
+      Array.isArray(nextOrderBy) && nextOrderBy[0].trim().length > 0 ? nextOrderBy : undefined,
   };
 }

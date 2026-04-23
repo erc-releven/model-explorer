@@ -3,17 +3,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-import {
-  array,
-  command,
-  flag,
-  multioption,
-  oneOf,
-  option,
-  optional,
-  run,
-  string,
-} from "cmd-ts";
+import { array, command, flag, multioption, oneOf, option, optional, run, string } from "cmd-ts";
 import { JSDOM } from "jsdom";
 
 import { defaultSparqlConfig, type NodeState } from "./scenario";
@@ -25,10 +15,7 @@ import {
 } from "./serializer/pathbuilder";
 import { serializeModelStateToPydantic } from "./serializer/pydantic";
 import { serializeScenarioToSparql } from "./serializer/sparql";
-import {
-  executeSparqlQuery,
-  type SparqlExecutionResult,
-} from "./serializer/sparql-execution";
+import { executeSparqlQuery, type SparqlExecutionResult } from "./serializer/sparql-execution";
 import { DEFAULT_SPARQL_ENDPOINT } from "./serializer/sparql-query";
 import { serializeModelStateToSearch } from "./serializer/url";
 
@@ -47,10 +34,7 @@ interface ScenarioReport {
   sparql: string;
 }
 
-function deriveScenarioName(
-  filePath: string,
-  parsedScenario: NamedScenario,
-): string {
+function deriveScenarioName(filePath: string, parsedScenario: NamedScenario): string {
   if (parsedScenario.name != null && parsedScenario.name.trim().length > 0) {
     return parsedScenario.name.trim();
   }
@@ -87,10 +71,7 @@ async function loadScenarioFile(filePath: string): Promise<LoadedScenario> {
   };
 }
 
-function createNodeSelectionPath(
-  ancestorIds: Array<string>,
-  pathId: string,
-): Array<string> {
+function createNodeSelectionPath(ancestorIds: Array<string>, pathId: string): Array<string> {
   if (ancestorIds.length === 0) {
     return [pathId];
   }
@@ -116,10 +97,7 @@ function collectRootTypeScenarioNodes(
   return nodes;
 }
 
-function createRootTypeScenarios(
-  pathbuilder: Pathbuilder,
-  xmlPath: string,
-): Array<LoadedScenario> {
+function createRootTypeScenarios(pathbuilder: Pathbuilder, xmlPath: string): Array<LoadedScenario> {
   return pathbuilder
     .values()
     .filter((path) => path.path_array.length === 1)
@@ -208,9 +186,7 @@ function slugifyScenarioName(value: string): string {
   return slug.length > 0 ? slug : "scenario";
 }
 
-function createScenarioFileNames(
-  reports: Array<ScenarioReport>,
-): Array<string> {
+function createScenarioFileNames(reports: Array<ScenarioReport>): Array<string> {
   const seenCountsBySlug = new Map<string, number>();
 
   return reports.map((report) => {
@@ -237,11 +213,7 @@ async function writeScenarioFiles(
       const queryPath = join(outputDirectory, `${fileName}.rq`);
       const modelPath = join(outputDirectory, `${fileName}.py`);
 
-      await writeFile(
-        queryPath,
-        `${formatTextReport(report, null, false)}\n`,
-        "utf8",
-      );
+      await writeFile(queryPath, `${formatTextReport(report, null, false)}\n`, "utf8");
       await writeFile(modelPath, `${report.pydantic}\n`, "utf8");
     }),
   );
@@ -298,9 +270,7 @@ const cli = command({
     }
 
     if (!args.rootTypes && args.scenario.length === 0) {
-      throw new Error(
-        "Provide at least one --scenario file or pass --root-types.",
-      );
+      throw new Error("Provide at least one --scenario file or pass --root-types.");
     }
 
     if (args.output === "files" && args.outputDir == null) {
@@ -315,9 +285,7 @@ const cli = command({
     const loadedScenarios = args.rootTypes
       ? createRootTypeScenarios(pathbuilder, resolvedXmlPath)
       : await Promise.all(
-          args.scenario.map(
-            async (scenarioFile) => await loadScenarioFile(scenarioFile),
-          ),
+          args.scenario.map(async (scenarioFile) => await loadScenarioFile(scenarioFile)),
         );
     const reports: Array<ScenarioReport> = [];
 
@@ -354,11 +322,7 @@ const cli = command({
     process.stdout.write(
       `${reports
         .map((report) =>
-          formatTextReport(
-            report,
-            args.execute ? args.endpoint : null,
-            args.execute,
-          ),
+          formatTextReport(report, args.execute ? args.endpoint : null, args.execute),
         )
         .join("\n\n---\n\n")}\n`,
     );

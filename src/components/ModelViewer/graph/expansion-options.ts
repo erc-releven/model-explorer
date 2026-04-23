@@ -1,7 +1,4 @@
-import type {
-  Pathbuilder,
-  PathbuilderPath,
-} from "../../../serializer/pathbuilder";
+import type { Pathbuilder, PathbuilderPath } from "../../../serializer/pathbuilder";
 import {
   resolveTargetPathForNodePath,
   resolveTransitionLabelForNodePath,
@@ -34,10 +31,7 @@ function isDirectVisibleExtension(
   );
 }
 
-function isSameModelClass(
-  left: PathbuilderPath,
-  right: PathbuilderPath,
-): boolean {
+function isSameModelClass(left: PathbuilderPath, right: PathbuilderPath): boolean {
   if (left.rdf_type.length > 0 && right.rdf_type.length > 0) {
     return left.rdf_type === right.rdf_type;
   }
@@ -60,10 +54,7 @@ function getPreviousVisiblePathOption(
     return undefined;
   }
 
-  const previousTargetPath = resolveTargetPathForNodePath(
-    pathbuilder,
-    previousPath,
-  );
+  const previousTargetPath = resolveTargetPathForNodePath(pathbuilder, previousPath);
 
   if (previousTargetPath == null) {
     return undefined;
@@ -95,10 +86,7 @@ function getOptionLabel(
   parentTargetPath: PathbuilderPath,
   targetPath: PathbuilderPath,
 ): string {
-  return (
-    resolveTransitionLabelForNodePath(pathbuilder, path, parentTargetPath) ??
-    targetPath.name
-  );
+  return resolveTransitionLabelForNodePath(pathbuilder, path, parentTargetPath) ?? targetPath.name;
 }
 
 function idPathReachedFromBelow(nodePath: Array<string>): boolean {
@@ -117,11 +105,7 @@ function insertOptionBeforeMatchingOutgoing(
     return [...options, optionToInsert];
   }
 
-  return [
-    ...options.slice(0, insertionIndex),
-    optionToInsert,
-    ...options.slice(insertionIndex),
-  ];
+  return [...options.slice(0, insertionIndex), optionToInsert, ...options.slice(insertionIndex)];
 }
 
 export function getTopExpansionOptions(
@@ -136,11 +120,7 @@ export function getTopExpansionOptions(
       : undefined;
   const optionPaths =
     targetPath.references.length > 0
-      ? targetPath.references.map((referenceId) => [
-          ...nodePath,
-          "<",
-          referenceId,
-        ])
+      ? targetPath.references.map((referenceId) => [...nodePath, "<", referenceId])
       : idPathReachedFromBelow(nodePath) && targetPath.group != null
         ? [[...nodePath, "<", targetPath.group]]
         : [];
@@ -160,10 +140,7 @@ export function getTopExpansionOptions(
         path,
         relationLabel:
           previousVisiblePathOption != null &&
-          isSameModelClass(
-            optionTargetPath,
-            previousVisiblePathOption.targetPath,
-          )
+          isSameModelClass(optionTargetPath, previousVisiblePathOption.targetPath)
             ? ("outgoing" as const)
             : undefined,
         rdfType: optionTargetPath.rdf_type,
@@ -194,11 +171,7 @@ export function getTopExpansionOptions(
   return insertOptionBeforeMatchingOutgoing(resolvedOptions, {
     disabled: true,
     id: `${stringifyPath(previousVisiblePathOption.path)}::incoming`,
-    label: getPreviousVisibleOptionLabel(
-      pathbuilder,
-      nodePath,
-      previousVisiblePathOption,
-    ),
+    label: getPreviousVisibleOptionLabel(pathbuilder, nodePath, previousVisiblePathOption),
     path: previousVisiblePathOption.path,
     relationLabel: "incoming",
     rdfType: previousVisiblePathOption.targetPath.rdf_type,
@@ -216,25 +189,23 @@ export function getBottomExpansionOptions(
     nodePath.at(-2) === "<"
       ? getPreviousVisiblePathOption(pathbuilder, visiblePathKeys, nodePath)
       : undefined;
-  const resolvedOptions = Object.values(targetPath.children).map(
-    (childPath) => {
-      const path = [...nodePath, ">", childPath.id];
+  const resolvedOptions = Object.values(targetPath.children).map((childPath) => {
+    const path = [...nodePath, ">", childPath.id];
 
-      return {
-        disabled: false,
-        id: stringifyPath(path),
-        label: getOptionLabel(pathbuilder, path, targetPath, childPath),
-        path,
-        relationLabel:
-          previousVisiblePathOption != null &&
-          isSameModelClass(childPath, previousVisiblePathOption.targetPath)
-            ? ("outgoing" as const)
-            : undefined,
-        rdfType: childPath.rdf_type,
-        visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
-      };
-    },
-  );
+    return {
+      disabled: false,
+      id: stringifyPath(path),
+      label: getOptionLabel(pathbuilder, path, targetPath, childPath),
+      path,
+      relationLabel:
+        previousVisiblePathOption != null &&
+        isSameModelClass(childPath, previousVisiblePathOption.targetPath)
+          ? ("outgoing" as const)
+          : undefined,
+      rdfType: childPath.rdf_type,
+      visible: isDirectVisibleExtension(visiblePathKeys, nodePath, path),
+    };
+  });
 
   if (previousVisiblePathOption == null) {
     return resolvedOptions;
@@ -251,11 +222,7 @@ export function getBottomExpansionOptions(
   return insertOptionBeforeMatchingOutgoing(resolvedOptions, {
     disabled: true,
     id: `${stringifyPath(previousVisiblePathOption.path)}::incoming`,
-    label: getPreviousVisibleOptionLabel(
-      pathbuilder,
-      nodePath,
-      previousVisiblePathOption,
-    ),
+    label: getPreviousVisibleOptionLabel(pathbuilder, nodePath, previousVisiblePathOption),
     path: previousVisiblePathOption.path,
     relationLabel: "incoming",
     rdfType: previousVisiblePathOption.targetPath.rdf_type,

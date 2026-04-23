@@ -1,7 +1,4 @@
-import {
-  createBundledHighlighter,
-  createSingletonShorthands,
-} from "shiki/core";
+import { createBundledHighlighter, createSingletonShorthands } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 
 type HighlightLanguage = "json" | "python" | "sparql" | "text";

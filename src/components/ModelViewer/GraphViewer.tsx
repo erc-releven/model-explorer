@@ -25,11 +25,7 @@ interface GraphViewerProps {
 
 const nodeTypes: NodeTypes = { pathNode: GraphNodeComponent };
 
-export function GraphViewer({
-  dispatchScenario,
-  scenario,
-  pathbuilder,
-}: GraphViewerProps) {
+export function GraphViewer({ dispatchScenario, scenario, pathbuilder }: GraphViewerProps) {
   const { expandedNodeId, graph, rootNodeId } = useGraphTree({
     dispatchScenario,
     scenario,
@@ -42,17 +38,12 @@ export function GraphViewer({
       className="panel relative min-h-panel max-h-screen flex-1 overflow-hidden"
     >
       <ReactFlowProvider>
-        <GraphCanvas
-          expandedNodeId={expandedNodeId}
-          graph={graph}
-          rootNodeId={rootNodeId}
-        />
+        <GraphCanvas expandedNodeId={expandedNodeId} graph={graph} rootNodeId={rootNodeId} />
       </ReactFlowProvider>
       {scenario.nodes.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-6 text-center">
           <div className="rounded-panel border border-ui-border bg-surface-alt px-4 py-3 text-sm text-text-strong shadow-sm">
-            select a root class in the pathbuilder results above to begin
-            exploring the model
+            select a root class in the pathbuilder results above to begin exploring the model
           </div>
         </div>
       ) : null}
@@ -111,9 +102,7 @@ function GraphCanvas({ expandedNodeId, graph, rootNodeId }: GraphCanvasProps) {
     });
 
     const rootNode =
-      rootNodeId == null
-        ? undefined
-        : positionedNodes.find((node) => node.id === rootNodeId);
+      rootNodeId == null ? undefined : positionedNodes.find((node) => node.id === rootNodeId);
 
     if (rootNode == null) {
       return positionedNodes;
@@ -132,9 +121,7 @@ function GraphCanvas({ expandedNodeId, graph, rootNodeId }: GraphCanvasProps) {
       };
     });
   }, [graph.nodes, rootNodeId]);
-  const [nodes, setNodes, onNodesChange] = useNodesState(
-    dynamicallyPositionedNodes,
-  );
+  const [nodes, setNodes, onNodesChange] = useNodesState(dynamicallyPositionedNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(graph.edges);
   const { getViewport, setCenter, setViewport } = useReactFlow();
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -158,9 +145,7 @@ function GraphCanvas({ expandedNodeId, graph, rootNodeId }: GraphCanvasProps) {
       return;
     }
 
-    const rootNode = dynamicallyPositionedNodes.find(
-      (node) => node.id === rootNodeId,
-    );
+    const rootNode = dynamicallyPositionedNodes.find((node) => node.id === rootNodeId);
 
     if (rootNode == null) {
       previousRootNodeId.current = rootNodeId;
@@ -170,27 +155,17 @@ function GraphCanvas({ expandedNodeId, graph, rootNodeId }: GraphCanvasProps) {
     const nodeWidth = 192;
     const nodeHeight = 88;
 
-    void setCenter(
-      rootNode.position.x + nodeWidth / 2,
-      rootNode.position.y + nodeHeight / 2,
-      {
-        duration: 300,
-        zoom: 1,
-      },
-    );
+    void setCenter(rootNode.position.x + nodeWidth / 2, rootNode.position.y + nodeHeight / 2, {
+      duration: 300,
+      zoom: 1,
+    });
     previousRootNodeId.current = rootNodeId;
-    previousMinY.current = dynamicallyPositionedNodes.reduce(
-      (currentMin, node) => {
-        return Math.min(currentMin, node.position.y);
-      },
-      0,
-    );
-    previousMaxY.current = dynamicallyPositionedNodes.reduce(
-      (currentMax, node) => {
-        return Math.max(currentMax, node.position.y);
-      },
-      0,
-    );
+    previousMinY.current = dynamicallyPositionedNodes.reduce((currentMin, node) => {
+      return Math.min(currentMin, node.position.y);
+    }, 0);
+    previousMaxY.current = dynamicallyPositionedNodes.reduce((currentMax, node) => {
+      return Math.max(currentMax, node.position.y);
+    }, 0);
   }, [dynamicallyPositionedNodes, rootNodeId, setCenter]);
 
   useEffect(() => {
@@ -220,16 +195,13 @@ function GraphCanvas({ expandedNodeId, graph, rootNodeId }: GraphCanvasProps) {
     const topOverflow = 24;
     const viewport = getViewport();
     const previousExpandedNodeX =
-      expandedNodeId == null
-        ? undefined
-        : previousNodeXById.current.get(expandedNodeId);
+      expandedNodeId == null ? undefined : previousNodeXById.current.get(expandedNodeId);
     const currentExpandedNodeX =
       expandedNodeId == null ? undefined : currentNodeXById.get(expandedNodeId);
     const nextViewportX =
       previousExpandedNodeX == null || currentExpandedNodeX == null
         ? viewport.x
-        : viewport.x +
-          (previousExpandedNodeX - currentExpandedNodeX) * viewport.zoom;
+        : viewport.x + (previousExpandedNodeX - currentExpandedNodeX) * viewport.zoom;
     const easeOutCubic = (value: number) => 1 - (1 - value) ** 3;
 
     if (previousMin != null && minY < previousMin) {

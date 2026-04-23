@@ -15,9 +15,7 @@ import { serializeScenarioToSparql } from "./sparql";
 
 type SelectionDirection = "<" | ">";
 type ParsedSelection = Array<string>;
-type ScenarioSelection =
-  | string
-  | { selected: NodeState["selected"]; selection: string };
+type ScenarioSelection = string | { selected: NodeState["selected"]; selection: string };
 
 interface StatementGraph {
   statementVariableSets: Array<Set<string>>;
@@ -33,10 +31,7 @@ function loadDefaultPathbuilder(): Pathbuilder {
     throw new Error("DEFAULT_XML is not configured for tests.");
   }
 
-  const xmlContent = readFileSync(
-    resolve(process.cwd(), "public", xmlSource),
-    "utf8",
-  );
+  const xmlContent = readFileSync(resolve(process.cwd(), "public", xmlSource), "utf8");
 
   return parsePathbuilderXml(xmlContent);
 }
@@ -63,10 +58,7 @@ function splitIdParts(id: string): { prefix: string; tokens: Array<string> } {
   };
 }
 
-function createCandidateAliases(
-  candidateId: string,
-  parentId?: string,
-): Set<string> {
+function createCandidateAliases(candidateId: string, parentId?: string): Set<string> {
   const aliases = new Set([candidateId]);
 
   if (parentId == null) {
@@ -90,9 +82,7 @@ function createCandidateAliases(
   }
 
   if (commonLength > 0 && commonLength < candidate.tokens.length) {
-    aliases.add(
-      `${candidate.prefix}_${candidate.tokens.slice(commonLength).join("_")}`,
-    );
+    aliases.add(`${candidate.prefix}_${candidate.tokens.slice(commonLength).join("_")}`);
   }
 
   return aliases;
@@ -127,20 +117,13 @@ function resolveSelectionSegment(
   }
 
   if (candidates.length > 1) {
-    throw new Error(
-      `Ambiguous selection segment "${segment}" below "${parentId}".`,
-    );
+    throw new Error(`Ambiguous selection segment "${segment}" below "${parentId}".`);
   }
 
-  throw new Error(
-    `Could not resolve selection segment "${segment}" below "${parentId}".`,
-  );
+  throw new Error(`Could not resolve selection segment "${segment}" below "${parentId}".`);
 }
 
-function resolveSelectionPath(
-  pathbuilder: Pathbuilder,
-  selection: string,
-): Array<string> {
+function resolveSelectionPath(pathbuilder: Pathbuilder, selection: string): Array<string> {
   const parts = parseSelection(selection);
   const rootId = parts[0];
 
@@ -159,12 +142,7 @@ function resolveSelectionPath(
       throw new Error(`Invalid selection syntax: "${selection}".`);
     }
 
-    const resolvedSegment = resolveSelectionSegment(
-      pathbuilder,
-      currentId,
-      direction,
-      segment,
-    );
+    const resolvedSegment = resolveSelectionSegment(pathbuilder, currentId, direction, segment);
 
     resolvedPath.push(direction, resolvedSegment);
     currentId = resolvedSegment;
@@ -226,9 +204,7 @@ function createScenarioFromSelections(
   };
 }
 
-function isVariableTerm(
-  value: unknown,
-): value is { termType: "Variable"; value: string } {
+function isVariableTerm(value: unknown): value is { termType: "Variable"; value: string } {
   return (
     typeof value === "object" &&
     value != null &&
@@ -269,15 +245,10 @@ function collectVariablesFromValue(value: unknown): Set<string> {
 }
 
 function asRecord(value: unknown): null | UnknownRecord {
-  return typeof value === "object" && value != null
-    ? (value as UnknownRecord)
-    : null;
+  return typeof value === "object" && value != null ? (value as UnknownRecord) : null;
 }
 
-function mergeStatementGraph(
-  target: StatementGraph,
-  source: StatementGraph,
-): void {
+function mergeStatementGraph(target: StatementGraph, source: StatementGraph): void {
   for (const variable of source.variables) {
     target.variables.add(variable);
   }
@@ -292,11 +263,7 @@ function collectStatementGraph(patterns: Array<unknown>): StatementGraph {
   };
 
   for (const pattern of patterns) {
-    if (
-      typeof pattern !== "object" ||
-      pattern == null ||
-      !("type" in pattern)
-    ) {
+    if (typeof pattern !== "object" || pattern == null || !("type" in pattern)) {
       continue;
     }
 
@@ -380,9 +347,7 @@ function collectStatementGraph(patterns: Array<unknown>): StatementGraph {
   return graph;
 }
 
-function getProjectedVariables(parsedQuery: {
-  variables?: Array<unknown>;
-}): Set<string> {
+function getProjectedVariables(parsedQuery: { variables?: Array<unknown> }): Set<string> {
   const variables = new Set<string>();
 
   for (const variable of parsedQuery.variables ?? []) {
@@ -402,9 +367,7 @@ function getProjectedVariables(parsedQuery: {
   return variables;
 }
 
-function collectNestedQueryProjectedVariables(
-  patterns: Array<unknown>,
-): Set<string> {
+function collectNestedQueryProjectedVariables(patterns: Array<unknown>): Set<string> {
   const variables = new Set<string>();
 
   for (const pattern of patterns) {
@@ -421,9 +384,7 @@ function collectNestedQueryProjectedVariables(
       case "optional":
       case "service": {
         if (Array.isArray(record.patterns)) {
-          for (const variable of collectNestedQueryProjectedVariables(
-            record.patterns,
-          )) {
+          for (const variable of collectNestedQueryProjectedVariables(record.patterns)) {
             variables.add(variable);
           }
         }
@@ -437,9 +398,7 @@ function collectNestedQueryProjectedVariables(
               continue;
             }
 
-            for (const variable of collectNestedQueryProjectedVariables(
-              branch,
-            )) {
+            for (const variable of collectNestedQueryProjectedVariables(branch)) {
               variables.add(variable);
             }
           }
@@ -453,9 +412,7 @@ function collectNestedQueryProjectedVariables(
         }
 
         if (Array.isArray(record.where)) {
-          for (const variable of collectNestedQueryProjectedVariables(
-            record.where,
-          )) {
+          for (const variable of collectNestedQueryProjectedVariables(record.where)) {
             variables.add(variable);
           }
         }
@@ -541,8 +498,7 @@ const mixedCountSelectionsWithoutRoot = [
   },
   {
     selected: "count" as const,
-    selection:
-      "g_social_relationship > g_social_relationship_categorisation_assertion",
+    selection: "g_social_relationship > g_social_relationship_categorisation_assertion",
   },
 ] as const satisfies Array<ScenarioSelection>;
 
@@ -561,13 +517,11 @@ const serializerScenarios = [
   },
   {
     selections: mixedCountSelectionsWithoutRoot,
-    title:
-      "keeps mixed value and count selections grounded in one contiguous WHERE graph",
+    title: "keeps mixed value and count selections grounded in one contiguous WHERE graph",
   },
   {
     selections: mixedCountSelectionsWithRoot,
-    title:
-      "keeps mixed value and count selections contiguous when the root node is also selected",
+    title: "keeps mixed value and count selections contiguous when the root node is also selected",
   },
 ] as const;
 
@@ -606,18 +560,13 @@ describe("serializeScenarioToSparql", () => {
 
   test("serializes the two mixed count scenarios identically apart from one extra selected variable", () => {
     const pathbuilder = loadDefaultPathbuilder();
-    const baseScenario = createScenarioFromSelections(
-      pathbuilder,
-      mixedCountSelectionsWithoutRoot,
-    );
+    const baseScenario = createScenarioFromSelections(pathbuilder, mixedCountSelectionsWithoutRoot);
     const rootSelectedScenario = createScenarioFromSelections(
       pathbuilder,
       mixedCountSelectionsWithRoot,
     );
     const parser = new SparqlParser();
-    const baseParsedQuery = parser.parse(
-      serializeScenarioToSparql(baseScenario, pathbuilder),
-    ) as {
+    const baseParsedQuery = parser.parse(serializeScenarioToSparql(baseScenario, pathbuilder)) as {
       variables?: Array<unknown>;
       where?: Array<unknown>;
     };
@@ -628,14 +577,10 @@ describe("serializeScenarioToSparql", () => {
       where?: Array<unknown>;
     };
     const baseSelectVariables = getProjectedVariables(baseParsedQuery);
-    const rootSelectedSelectVariables = getProjectedVariables(
-      rootSelectedParsedQuery,
-    );
-    const additionalVariables = Array.from(rootSelectedSelectVariables).filter(
-      (variable) => {
-        return !baseSelectVariables.has(variable);
-      },
-    );
+    const rootSelectedSelectVariables = getProjectedVariables(rootSelectedParsedQuery);
+    const additionalVariables = Array.from(rootSelectedSelectVariables).filter((variable) => {
+      return !baseSelectVariables.has(variable);
+    });
 
     expect(
       Array.from(baseSelectVariables).filter(
@@ -650,10 +595,7 @@ describe("serializeScenarioToSparql", () => {
 
   test("serializes a lone count selection as an ungrouped subselect in the WHERE clause", () => {
     const pathbuilder = loadDefaultPathbuilder();
-    const scenario = createScenarioFromSelections(
-      pathbuilder,
-      countOnlySelection,
-    );
+    const scenario = createScenarioFromSelections(pathbuilder, countOnlySelection);
     const parsedQuery = new SparqlParser().parse(
       serializeScenarioToSparql(scenario, pathbuilder),
     ) as {

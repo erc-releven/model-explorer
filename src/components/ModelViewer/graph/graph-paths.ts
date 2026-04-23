@@ -1,7 +1,4 @@
-import type {
-  Pathbuilder,
-  PathbuilderPath,
-} from "../../../serializer/pathbuilder";
+import type { Pathbuilder, PathbuilderPath } from "../../../serializer/pathbuilder";
 
 export function stringifyPath(path: Array<string>): string {
   return path.join("");
@@ -32,9 +29,7 @@ export function resolveTargetPathForNodePath(
     }
 
     if (direction === ">") {
-      const childPath = currentPath.children[segment] as
-        | PathbuilderPath
-        | undefined;
+      const childPath = currentPath.children[segment] as PathbuilderPath | undefined;
 
       if (childPath == null) {
         return undefined;

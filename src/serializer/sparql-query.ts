@@ -1,13 +1,9 @@
-import {
-  defaultSparqlConfig,
-  normalizeSparqlConfig,
-  type Scenario,
-} from "../scenario";
+import { defaultSparqlConfig, normalizeSparqlConfig, type Scenario } from "../scenario";
 import type { Pathbuilder } from "./pathbuilder";
 import { serializeScenarioToSparql } from "./sparql";
 
 export const DEFAULT_SPARQL_ENDPOINT =
-  "https://releven-graphdb.acdh-dev.oeaw.ac.at/repositories/owl-max";
+  "https://releven-graphdb.acdh-dev.oeaw.ac.at/repositories/releven2026";
 
 interface CountQueueEntry<T> {
   priority: number;
@@ -93,10 +89,7 @@ function dequeueNextCountRequest(): CountQueueEntry<unknown> | undefined {
       continue;
     }
 
-    if (
-      current.priority === next.priority &&
-      current.sequence < next.sequence
-    ) {
+    if (current.priority === next.priority && current.sequence < next.sequence) {
       nextIndex = index;
     }
   }
@@ -130,10 +123,7 @@ async function processCountQueue(): Promise<void> {
   }
 }
 
-function enqueueCountRequest<T>(
-  priority: number,
-  task: () => Promise<T>,
-): Promise<T> {
+function enqueueCountRequest<T>(priority: number, task: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     countQueueEntries.push({
       priority,
@@ -158,9 +148,7 @@ function enqueueCountRequest<T>(
   });
 }
 
-function buildTraversalNodesForPath(
-  nodePath: Array<string>,
-): Scenario["nodes"] {
+function buildTraversalNodesForPath(nodePath: Array<string>): Scenario["nodes"] {
   if (nodePath.length === 0) {
     return [];
   }
@@ -200,39 +188,34 @@ async function fetchCountForQuery(
     return await pendingRequest;
   }
 
-  const requestPromise = enqueueCountRequest(
-    priority,
-    async (): Promise<number> => {
-      const response = await fetch(endpoint, {
-        body: new URLSearchParams({ query }).toString(),
-        headers: {
-          Accept: "application/sparql-results+json, application/json",
-          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        },
-        method: "POST",
-      });
-      const responseText = await response.text();
+  const requestPromise = enqueueCountRequest(priority, async (): Promise<number> => {
+    const response = await fetch(endpoint, {
+      body: new URLSearchParams({ query }).toString(),
+      headers: {
+        Accept: "application/sparql-results+json, application/json",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      },
+      method: "POST",
+    });
+    const responseText = await response.text();
 
-      if (!response.ok) {
-        throw new Error(
-          `Count query failed (${String(response.status)}): ${responseText}`,
-        );
-      }
+    if (!response.ok) {
+      throw new Error(`Count query failed (${String(response.status)}): ${responseText}`);
+    }
 
-      let parsedPayload: unknown;
+    let parsedPayload: unknown;
 
-      try {
-        parsedPayload = JSON.parse(responseText) as unknown;
-      } catch {
-        throw new Error("Count query returned non-JSON response.");
-      }
+    try {
+      parsedPayload = JSON.parse(responseText) as unknown;
+    } catch {
+      throw new Error("Count query returned non-JSON response.");
+    }
 
-      const count = extractCountFromSparqlResult(parsedPayload);
-      countResultCache.set(cacheKey, count);
+    const count = extractCountFromSparqlResult(parsedPayload);
+    countResultCache.set(cacheKey, count);
 
-      return count;
-    },
-  );
+    return count;
+  });
 
   pendingCountRequestsByKey.set(cacheKey, requestPromise);
 
@@ -294,11 +277,7 @@ export async function fetchCountForNodePath(
     },
     pathbuilder,
   );
-  const distinctCount = await fetchCountForQuery(
-    endpoint,
-    distinctQuery,
-    priority,
-  );
+  const distinctCount = await fetchCountForQuery(endpoint, distinctQuery, priority);
   const totalCount = await fetchCountForQuery(endpoint, totalQuery, priority);
 
   return { distinctCount, totalCount };

@@ -19,11 +19,7 @@ import {
 import { type Dispatch, useEffect, useRef, useState } from "react";
 import { Parser as SparqlParser } from "sparqljs";
 
-import type {
-  OrderByDirection,
-  Scenario,
-  ScenarioAction,
-} from "../../scenario";
+import type { OrderByDirection, Scenario, ScenarioAction } from "../../scenario";
 import { DEFAULT_SPARQL_ENDPOINT } from "../../serializer/sparql-query";
 import { ClearableInput } from "../ui/ClearableInput";
 import { LabeledBorderBox } from "../ui/LabeledBorderBox";
@@ -58,16 +54,10 @@ export function SparqlConfig({
   onExecuteQuery,
 }: SparqlConfigProps) {
   const sparql = modelState.sparql;
-  const hasCountNode = modelState.nodes.some(
-    (node) => node.selected === "count",
-  );
-  const hasSelectedNode = modelState.nodes.some(
-    (node) => node.selected != null,
-  );
+  const hasCountNode = modelState.nodes.some((node) => node.selected === "count");
+  const hasSelectedNode = modelState.nodes.some((node) => node.selected != null);
   const displayedGeneratedQuery = hasSelectedNode ? generatedQuery : "";
-  const displayedGeneratedPydanticModel = hasSelectedNode
-    ? generatedPydanticModel
-    : "";
+  const displayedGeneratedPydanticModel = hasSelectedNode ? generatedPydanticModel : "";
   const textAreaRef = useRef<null | HTMLTextAreaElement>(null);
   const highlightedCodeRef = useRef<null | HTMLDivElement>(null);
   const pydanticTextAreaRef = useRef<null | HTMLTextAreaElement>(null);
@@ -75,9 +65,7 @@ export function SparqlConfig({
   const [endpoint, setEndpoint] = useState(DEFAULT_SPARQL_ENDPOINT);
   const [activeTab, setActiveTab] = useState<"pydantic" | "sparql">("sparql");
   const [queryText, setQueryText] = useState(displayedGeneratedQuery);
-  const [pydanticText, setPydanticText] = useState(
-    displayedGeneratedPydanticModel,
-  );
+  const [pydanticText, setPydanticText] = useState(displayedGeneratedPydanticModel);
   const [isConfigExpanded, setIsConfigExpanded] = useState(true);
   const [highlightedHtml, setHighlightedHtml] = useState(
     '<pre class="shiki github-light" style="background-color:#fff;color:#24292e"><code></code></pre>',
@@ -188,9 +176,7 @@ export function SparqlConfig({
       sparqlParserRef.current.parse(trimmedQuery);
       setQuerySyntaxError(null);
     } catch (error: unknown) {
-      setQuerySyntaxError(
-        error instanceof Error ? error.message : "Invalid SPARQL syntax.",
-      );
+      setQuerySyntaxError(error instanceof Error ? error.message : "Invalid SPARQL syntax.");
     }
   }, [queryText]);
 
@@ -201,11 +187,7 @@ export function SparqlConfig({
       return;
     }
 
-    if (
-      selectedVariables.some(
-        (variable) => toOrderByVariableName(variable) === orderBy[0],
-      )
-    ) {
+    if (selectedVariables.some((variable) => toOrderByVariableName(variable) === orderBy[0])) {
       return;
     }
 
@@ -225,17 +207,12 @@ export function SparqlConfig({
   }
 
   function onPydanticTextAreaScroll(): void {
-    if (
-      pydanticTextAreaRef.current == null ||
-      pydanticHighlightedCodeRef.current == null
-    ) {
+    if (pydanticTextAreaRef.current == null || pydanticHighlightedCodeRef.current == null) {
       return;
     }
 
-    pydanticHighlightedCodeRef.current.scrollTop =
-      pydanticTextAreaRef.current.scrollTop;
-    pydanticHighlightedCodeRef.current.scrollLeft =
-      pydanticTextAreaRef.current.scrollLeft;
+    pydanticHighlightedCodeRef.current.scrollTop = pydanticTextAreaRef.current.scrollTop;
+    pydanticHighlightedCodeRef.current.scrollLeft = pydanticTextAreaRef.current.scrollLeft;
   }
 
   return (
@@ -252,12 +229,8 @@ export function SparqlConfig({
             setIsConfigExpanded(expanded);
           }}
         >
-          <AccordionSummary
-            expandIcon={isSingleColumnLayout ? <ExpandMoreIcon /> : undefined}
-          >
-            <span className="text-sm font-semibold text-text-strong">
-              SPARQL Configuration
-            </span>
+          <AccordionSummary expandIcon={isSingleColumnLayout ? <ExpandMoreIcon /> : undefined}>
+            <span className="text-sm font-semibold text-text-strong">SPARQL Configuration</span>
           </AccordionSummary>
           <AccordionDetails className="px-0 pb-0">
             <div className="flex flex-col gap-4">
@@ -274,8 +247,7 @@ export function SparqlConfig({
                               dispatchModelState({
                                 payload: {
                                   sparql: {
-                                    includeZeroCountResults:
-                                      event.target.checked,
+                                    includeZeroCountResults: event.target.checked,
                                   },
                                 },
                                 type: "state/setSparqlConfig",
@@ -315,8 +287,7 @@ export function SparqlConfig({
                             dispatchModelState({
                               payload: {
                                 sparql: {
-                                  disregardTypesOfNonRootNodes:
-                                    event.target.checked,
+                                  disregardTypesOfNonRootNodes: event.target.checked,
                                 },
                               },
                               type: "state/setSparqlConfig",
@@ -360,8 +331,7 @@ export function SparqlConfig({
                                 dispatchModelState({
                                   payload: {
                                     sparql: {
-                                      makeAllFieldsOptional:
-                                        event.target.checked,
+                                      makeAllFieldsOptional: event.target.checked,
                                     },
                                   },
                                   type: "state/setSparqlConfig",
@@ -376,15 +346,12 @@ export function SparqlConfig({
                     <FormControlLabel
                       control={
                         <Checkbox
-                          checked={
-                            sparql.omitPathPrefixesUnlessExplicitlySelected
-                          }
+                          checked={sparql.omitPathPrefixesUnlessExplicitlySelected}
                           onChange={(event) => {
                             dispatchModelState({
                               payload: {
                                 sparql: {
-                                  omitPathPrefixesUnlessExplicitlySelected:
-                                    event.target.checked,
+                                  omitPathPrefixesUnlessExplicitlySelected: event.target.checked,
                                 },
                               },
                               type: "state/setSparqlConfig",
@@ -454,10 +421,7 @@ export function SparqlConfig({
                                   orderBy:
                                     event.target.value === ""
                                       ? undefined
-                                      : [
-                                          event.target.value,
-                                          sparql.orderBy?.[1] ?? "ASC",
-                                        ],
+                                      : [event.target.value, sparql.orderBy?.[1] ?? "ASC"],
                                 },
                               },
                               type: "state/setSparqlConfig",
@@ -466,10 +430,7 @@ export function SparqlConfig({
                         >
                           <MenuItem value="">none</MenuItem>
                           {selectedVariables.map((variable) => (
-                            <MenuItem
-                              key={variable}
-                              value={toOrderByVariableName(variable)}
-                            >
+                            <MenuItem key={variable} value={toOrderByVariableName(variable)}>
                               {variable}
                             </MenuItem>
                           ))}
@@ -545,16 +506,11 @@ export function SparqlConfig({
                             return;
                           }
 
-                          const parsed = Number.parseInt(
-                            event.target.value,
-                            10,
-                          );
+                          const parsed = Number.parseInt(event.target.value, 10);
                           dispatchModelState({
                             payload: {
                               sparql: {
-                                limit: Number.isFinite(parsed)
-                                  ? parsed
-                                  : undefined,
+                                limit: Number.isFinite(parsed) ? parsed : undefined,
                               },
                             },
                             type: "state/setSparqlConfig",
@@ -657,9 +613,7 @@ export function SparqlConfig({
             }}
           />
           <Button
-            disabled={
-              !hasExecutableQuery || isExecuting || querySyntaxError != null
-            }
+            disabled={!hasExecutableQuery || isExecuting || querySyntaxError != null}
             variant="contained"
             onClick={() => {
               const query = textAreaRef.current?.value ?? "";

@@ -19,10 +19,7 @@ export function createGraphFromScenario(
     optionPaths: Array<Array<string>>,
     visible: boolean,
   ) => void,
-  onToggleBottomOption: (
-    idPath: Array<string>,
-    optionPath: Array<string>,
-  ) => void,
+  onToggleBottomOption: (idPath: Array<string>, optionPath: Array<string>) => void,
   onSelectNode: (idPath: Array<string>, count: boolean) => void,
   onSetTopOptionsVisibility: (
     idPath: Array<string>,
