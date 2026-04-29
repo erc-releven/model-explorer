@@ -27,7 +27,7 @@ export function ModelViewer({ dispatchModelState, scenario }: ModelViewerProps) 
   const [isResultsExpanded, setIsResultsExpanded] = useState(false);
   const allPaths = useMemo(() => pathbuilder?.values() ?? [], [pathbuilder]);
   const referenceEntities = useMemo(
-    () => allPaths.filter((path) => path.references.length > 0),
+    () => allPaths.filter((path) => path.group == null),
     [allPaths],
   );
   const [instanceCountByPathId, setInstanceCountByPathId] = useState<Record<string, number>>({});

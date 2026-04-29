@@ -132,21 +132,24 @@ function getConnectedSelectedEdgeIds(
   return edgeIds;
 }
 
-function getGreenEdgeIdsBehindCountNodes(
+function getGreenEdgeIds(
   connectedEdgeIds: Set<string>,
   countNodeIds: Array<string>,
+  selectedNodeIds: Array<string>,
   edges: Array<Edge>,
-  rootNodeId?: string,
 ): Set<string> {
-  const greenEdgeIds = new Set<string>();
-
-  if (rootNodeId == null || countNodeIds.length === 0 || connectedEdgeIds.size === 0) {
-    return greenEdgeIds;
+  if (countNodeIds.length === 0 || connectedEdgeIds.size === 0) {
+    return new Set();
   }
 
+  // Build adjacency restricted to connected selected edges only.
   const adjacency = new Map<string, Array<{ edgeId: string; nodeId: string }>>();
 
   for (const edge of edges) {
+    if (!connectedEdgeIds.has(edge.id)) {
+      continue;
+    }
+
     const sourceNeighbors = adjacency.get(edge.source) ?? [];
     sourceNeighbors.push({ edgeId: edge.id, nodeId: edge.target });
     adjacency.set(edge.source, sourceNeighbors);
@@ -156,64 +159,46 @@ function getGreenEdgeIdsBehindCountNodes(
     adjacency.set(edge.target, targetNeighbors);
   }
 
-  const queue = [rootNodeId];
-  const visited = new Set([rootNodeId]);
-  const depthByNode = new Map<string, number>([[rootNodeId, 0]]);
-  const parentByNode = new Map<string, string>();
+  const selectedNodeSet = new Set(selectedNodeIds);
+  const greenEdgeIds = new Set<string>();
 
-  while (queue.length > 0) {
-    const currentNodeId = queue.shift()!;
-    const neighbors = adjacency.get(currentNodeId) ?? [];
+  // For each count node, BFS through the connected subgraph and trace paths
+  // to all adjacent selected nodes in either direction.
+  for (const countNodeId of countNodeIds) {
+    const queue = [countNodeId];
+    const visited = new Set([countNodeId]);
+    const previousByNode = new Map<string, { edgeId: string; nodeId: string }>();
 
-    for (const neighbor of neighbors) {
-      if (visited.has(neighbor.nodeId)) {
+    while (queue.length > 0) {
+      const currentNodeId = queue.shift()!;
+
+      for (const neighbor of adjacency.get(currentNodeId) ?? []) {
+        if (visited.has(neighbor.nodeId)) {
+          continue;
+        }
+
+        visited.add(neighbor.nodeId);
+        previousByNode.set(neighbor.nodeId, { edgeId: neighbor.edgeId, nodeId: currentNodeId });
+        queue.push(neighbor.nodeId);
+      }
+    }
+
+    for (const targetId of selectedNodeIds) {
+      if (targetId === countNodeId || !previousByNode.has(targetId)) {
         continue;
       }
 
-      visited.add(neighbor.nodeId);
-      parentByNode.set(neighbor.nodeId, currentNodeId);
-      depthByNode.set(neighbor.nodeId, (depthByNode.get(currentNodeId) ?? 0) + 1);
-      queue.push(neighbor.nodeId);
-    }
-  }
+      let cursor = targetId;
 
-  function isDescendantOf(nodeId: string, ancestorId: string): boolean {
-    let cursor: undefined | string = nodeId;
+      while (cursor !== countNodeId) {
+        const previous = previousByNode.get(cursor);
 
-    while (cursor != null) {
-      if (cursor === ancestorId) {
-        return true;
-      }
+        if (previous == null) {
+          break;
+        }
 
-      cursor = parentByNode.get(cursor);
-    }
-
-    return false;
-  }
-
-  const connectedEdges = edges.filter((edge) => connectedEdgeIds.has(edge.id));
-
-  for (const edge of connectedEdges) {
-    const sourceDepth = depthByNode.get(edge.source);
-    const targetDepth = depthByNode.get(edge.target);
-
-    if (sourceDepth == null || targetDepth == null || sourceDepth === targetDepth) {
-      continue;
-    }
-
-    const childNodeId = sourceDepth > targetDepth ? edge.source : edge.target;
-    const childDepth = Math.max(sourceDepth, targetDepth);
-
-    for (const countNodeId of countNodeIds) {
-      const countDepth = depthByNode.get(countNodeId);
-
-      if (countDepth == null || childDepth < countDepth) {
-        continue;
-      }
-
-      if (isDescendantOf(childNodeId, countNodeId)) {
-        greenEdgeIds.add(edge.id);
-        break;
+        greenEdgeIds.add(previous.edgeId);
+        cursor = previous.nodeId;
       }
     }
   }
@@ -425,13 +410,11 @@ export function useGraphTree({
     }
 
     const connectedSelectedEdgeIds = getConnectedSelectedEdgeIds(baseGraph.edges, selectedNodeIds);
-    const rootNodeId =
-      modelState.nodes[0] == null ? undefined : stringifyPath(modelState.nodes[0].id);
-    const greenEdgeIds = getGreenEdgeIdsBehindCountNodes(
+    const greenEdgeIds = getGreenEdgeIds(
       connectedSelectedEdgeIds,
       countNodeIds,
+      selectedNodeIds,
       baseGraph.edges,
-      rootNodeId,
     );
 
     return {

@@ -130,7 +130,10 @@ export function GraphNode({ data }: NodeProps<FlowGraphNode>) {
       ) : null}
       <div
         className="relative min-w-[12rem] rounded-panel border bg-surface px-4 py-3 text-center text-text-strong shadow-sm"
-        style={{ borderColor: nodeBorderColor }}
+        style={{
+          borderColor: nodeBorderColor,
+          borderWidth: data.selected != null ? 2 : undefined,
+        }}
         onClick={(event) => {
           data.onSelectNode(data.id_array, event.shiftKey);
         }}
